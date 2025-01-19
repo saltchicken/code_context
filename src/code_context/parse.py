@@ -27,7 +27,6 @@ def print_tree_and_contents(startpath, gitignore_spec, extensions=None):
             and not is_ignored(os.path.join(root, d + "/"), gitignore_spec)
             and not is_ignored(os.path.join(root, d), gitignore_spec)
         ]
-        print(gitignore_spec)
 
         # Skip files that are ignored
         files = [
