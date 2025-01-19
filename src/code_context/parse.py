@@ -61,9 +61,3 @@ def print_tree_and_contents(startpath, gitignore_spec, extensions=None):
     final_output = "\n".join(output_lines)
 
     return final_output
-
-
-# Example usage
-if __name__ == "__main__":
-    gitignore_spec = load_gitignore()
-    print_tree_and_contents(".", gitignore_spec, extensions=[".py", ".txt"])
