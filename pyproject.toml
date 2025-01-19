@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code_context"
+version = "0.1"
+dependencies = [
+  pathspec==0.12.1
+]
+
+[project.scripts]
+code_context = "code_context.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
