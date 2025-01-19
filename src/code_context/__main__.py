@@ -19,7 +19,11 @@ def main():
     args = parser.parse_args()
 
     gitignore_spec = load_gitignore()
-    extensions_to_print = [".py", ".txt", ".toml"]  # Specify the extensions you want to print
+    extensions_to_print = [
+        ".py",
+        ".txt",
+        ".toml",
+    ]  # Specify the extensions you want to print
     context = print_tree_and_contents(
         ".", gitignore_spec, extensions=extensions_to_print
     )
