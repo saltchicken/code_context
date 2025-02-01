@@ -20,6 +20,7 @@ def main():
 
     gitignore_spec = load_gitignore()
     extensions_to_print = [
+        ".lua",
         ".py",
         ".txt",
         ".toml",
