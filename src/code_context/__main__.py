@@ -1,14 +1,12 @@
 import argparse
 import pyperclip
-from .parse import print_tree_and_contents, load_gitignore
+from .parse import get_functions, print_functions, CodeContext
 
 
 def main():
     parser = argparse.ArgumentParser(description="Get codebase context for LLM input")
     parser.add_argument(
-        "--clip",
-        action="store_true",
-        help="Send context to clipboard instead of printing",
+        "extensions", nargs="+", help="List of extensions to print", type=str
     )
     parser.add_argument(
         "--copy",
@@ -16,20 +14,22 @@ def main():
         help="Send context to clipboard instead of printing",
     )
 
-    args = parser.parse_args()
-
-    gitignore_spec = load_gitignore()
-    extensions_to_print = [
-        ".lua",
-        ".py",
-        ".txt",
-        ".toml",
-    ]  # Specify the extensions you want to print
-    context = print_tree_and_contents(
-        ".", gitignore_spec, extensions=extensions_to_print
+    parser.add_argument(
+        "--functions",
+        action="store_true",
+        help="Get functions",
     )
 
-    if args.clip or args.copy:
-        pyperclip.copy(context)
+    args = parser.parse_args()
+    args.extensions = [f".{s}" for s in args.extensions]
+
+    context = CodeContext(start_path=".", extensions=args.extensions)
+
+    if args.copy:
+        pyperclip.copy(context.context)
+    elif args.functions:
+        functions = get_functions(context.file_paths)
+        print_functions(functions)
     else:
-        print(context)
+        print(context.context)
+        print(context.file_paths)
