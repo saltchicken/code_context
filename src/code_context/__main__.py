@@ -32,4 +32,3 @@ def main():
         print_functions(functions)
     else:
         print(context.context)
-        print(context.file_paths)
