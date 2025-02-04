@@ -1,7 +1,6 @@
 import argparse
 import pyperclip
 from .parse import CodeContext
-from .func_parse import get_functions, print_functions
 
 def main():
     parser = argparse.ArgumentParser(description="Get codebase context for LLM input")
@@ -28,7 +27,6 @@ def main():
     if args.copy:
         pyperclip.copy(context.context)
     elif args.functions:
-        functions = get_functions(context.file_paths)
-        print_functions(functions)
+        context.print_functions()
     else:
         print(context.context)
