@@ -1,5 +1,6 @@
 import os
 import pathspec
+from .func_parse import get_functions, print_functions as _print_functions
 
 class CodeContext:
     def __init__(self, start_path, extensions=None):
@@ -14,6 +15,7 @@ class CodeContext:
         self.dirs = []
 
         self.parse_contents()
+        self.functions = get_functions(self.file_paths)
 
     def load_gitignore(self):
         if ".gitignore" in os.listdir():
@@ -97,3 +99,9 @@ class CodeContext:
 
         # Join all lines into a single string for printing or clipboard copying
         self.context = "\n".join(self.context)
+
+    def print_functions(self):
+        _print_functions(self.functions)
+
+
+
