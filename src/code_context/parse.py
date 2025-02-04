@@ -107,9 +107,15 @@ def extract_functions_from_file(file_path):
     functions = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
+            docstring = ast.get_docstring(node)
+            
+            # Remove docstring from the function body
+            if docstring and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Str):
+                node.body.pop(0)  # Remove the first statement (which is the docstring)
+
             functions.append({
                 "name": node.name,
-                "docstring": ast.get_docstring(node),
+                "docstring": docstring,
                 "code": ast.unparse(node),
             })
 
