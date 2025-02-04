@@ -1,7 +1,7 @@
 import argparse
 import pyperclip
-from .parse import get_functions, print_functions, CodeContext
-
+from .parse import CodeContext
+from .func_parse import get_functions, print_functions
 
 def main():
     parser = argparse.ArgumentParser(description="Get codebase context for LLM input")
