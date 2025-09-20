@@ -37,9 +37,11 @@ class CodeContext:
             self.extensions = []  # Default to an empty list if no extensions are specified
         self.extensions = extensions
         self.gitignore_spec = self.load_gitignore()
-        self.context = []
+        self.dir_tree = []
+        self.file_context = []
+        self.code_context = []
         self.file_paths = []
-        self.dirs = []
+        self.context = ""
 
         self.parse_contents()
         self.functions = get_functions(self.file_paths)
@@ -103,13 +105,12 @@ class CodeContext:
         for root, dirs, files in os.walk(self.start_path):
             # Filter directories and files based on gitignore
             dirs[:] = self.get_filtered_dirs(root, dirs)
-            self.dirs.extend(dirs)
             files = self.get_filtered_files(root, files)
 
             # Calculate the depth of the directory structure
             depth = self.calculate_depth(root, self.start_path)
             indent = self.get_indent(depth)
-            self.context.append(f"{indent}{os.path.basename(root)}/")
+            self.dir_tree.append(f"{indent}{os.path.basename(root)}/")
 
             # Collect files that match extensions
             self.file_paths.extend(self.collect_file_paths(root, files))
@@ -118,14 +119,16 @@ class CodeContext:
             subindent = self.get_indent(depth + 1)
             for file in files:
                 if any(file.endswith(ext) for ext in self.extensions):
-                    self.context.append(f"{subindent}{file}")
+                    self.dir_tree.append(f"{subindent}{file}")
 
         # After collecting the tree, add the contents of each file
-        self.context.append("\n----- File Contents -----")
-        self.context.extend(self.collect_file_contents(self.file_paths))
+        self.file_context.extend(self.collect_file_contents(self.file_paths))
 
         # Join all lines into a single string for printing or clipboard copying
-        self.context = "\n".join(self.context)
+        self.context += "----- Directory Structure -----\n\n"
+        self.context += "\n".join(self.dir_tree)
+        self.context += "\n\n----- File Contents -----"
+        self.context += "\n\n".join(self.file_context)
 
     def print_functions(self):
         _print_functions(self.functions)

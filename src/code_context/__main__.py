@@ -18,6 +18,11 @@ def main():
         action="store_true",
         help="Get functions",
     )
+    parser.add_argument(
+        "--dir_tree",
+        action="store_true",
+        help="Get directory tree",
+    )
 
     args = parser.parse_args()
     args.extensions = [f".{s}" for s in args.extensions]
@@ -28,5 +33,7 @@ def main():
         pyperclip.copy(context.context)
     elif args.functions:
         context.print_functions()
+    elif args.dir_tree:
+        print("\n".join(context.dir_tree))
     else:
         print(context.context)
