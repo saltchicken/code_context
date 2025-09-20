@@ -33,12 +33,6 @@ def main():
     )
     
     parser.add_argument(
-        "--functions",
-        action="store_true",
-        help="Extract and show Python functions from .py files."
-    )
-    
-    parser.add_argument(
         "--copy",
         action="store_true",
         help="Copy the generated context to the clipboard instead of printing."
@@ -55,7 +49,7 @@ def main():
     output_parts = []
     
     # Determine if the user has requested specific parts of the context.
-    has_specific_requests = any([args.tree, args.files, args.functions])
+    has_specific_requests = any([args.tree, args.files])
 
     if has_specific_requests:
         # Build the output from the requested parts.
@@ -66,23 +60,6 @@ def main():
         if args.files:
             output_parts.append(context.get_file_contents_string())
             
-        if args.functions:
-            # To make this work, you would add a `get_formatted_functions` method
-            # to your CodeContext class to nicely format the function data.
-            # Assuming such a method exists:
-            # output_parts.append(context.get_formatted_functions())
-            
-            # For now, let's just print the raw data:
-            if context.functions:
-                output_parts.append("--- Parsed Functions ---")
-                for func in context.functions:
-                    func_str = (
-                        f"\n----- Function: {func['name']} -----\n"
-                        f"Docstring: {func['docstring']}\n"
-                        f"Code:\n{func['code']}"
-                    )
-                    output_parts.append(func_str)
-
     else:
         # Default behavior: show the full context (tree + files).
         output_parts.append(context.get_full_context())

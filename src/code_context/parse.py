@@ -1,6 +1,5 @@
 import pathspec
 from pathlib import Path
-from .func_parse import get_functions
 
 class CodeContext:
     """
@@ -25,7 +24,6 @@ class CodeContext:
         # Private attributes to cache results. They are populated by properties.
         self._file_paths: list[Path] | None = None
         self._dir_tree: list[str] | None = None
-        self._functions: list[dict] | None = None
 
     # -------------------------------------------------------------------------
     # Public Properties for Lazy Loading 
@@ -44,17 +42,6 @@ class CodeContext:
         if self._dir_tree is None:
             self._walk_and_collect()
         return self._dir_tree or []
-
-    @property
-    def functions(self) -> list[dict]:
-        """Lazily parses and returns all functions from Python files."""
-        if self._functions is None:
-            # Filter for python files from the collected file paths
-            py_files = [
-                str(path) for path in self.file_paths if path.suffix == ".py"
-            ]
-            self._functions = get_functions(py_files)
-        return self._functions or []
 
     # -------------------------------------------------------------------------
     # Public Methods for Generating Output Strings
