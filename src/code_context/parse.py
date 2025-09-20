@@ -63,7 +63,7 @@ class CodeContext:
         return [
             d
             for d in dirs
-            if d != ".git"
+            if d not in {".git", ".venv"}  # exclude these explicitly
             and not self.is_ignored(os.path.join(root, d + "/"))
             and not self.is_ignored(os.path.join(root, d))
         ]
