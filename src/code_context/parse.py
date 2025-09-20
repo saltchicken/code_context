@@ -32,10 +32,7 @@ class CodeContext:
     """
     def __init__(self, start_path, extensions=None):
         self.start_path = start_path
-        self.extensions = extensions
-        if self.extensions is None:
-            self.extensions = []  # Default to an empty list if no extensions are specified
-        self.extensions = extensions
+        self.extensions = extensions or []
         self.gitignore_spec = self.load_gitignore()
         self.dir_tree = []
         self.file_context = []
