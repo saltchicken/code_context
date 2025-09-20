@@ -53,17 +53,26 @@ class CodeContext:
 
     def get_file_contents_string(self) -> str:
         """Returns the contents of all targeted files as a single formatted string."""
-        output_lines = []
+        output_blocks = []
         for file_path in self.file_paths:
             relative_path = file_path.relative_to(self.start_path)
-            output_lines.append(f'<file path="{relative_path}">')
             try:
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    output_lines.append(f.read())
+                    content = f.read()
+                
+                # Build the complete string for one file
+                file_block = (
+                    f'<file path="{relative_path}">\n'
+                    f"{content}\n"
+                    '</file>'
+                )
+                output_blocks.append(file_block)
+
             except Exception as e:
-                output_lines.append(f"Error reading {file_path}: {e}")
-            output_lines.append("</file>")
-        return "\n".join(output_lines)
+                output_blocks.append(f'<file path="{relative_path}" error="true">Error reading file: {e}</file>')
+        
+        # Join the complete blocks with two newlines for separation
+        return "\n\n".join(output_blocks)
 
     def get_full_context(self) -> str:
             """Constructs the complete context as a structured string."""
