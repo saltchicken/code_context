@@ -1,109 +1,141 @@
-import os
 import pathspec
-from .func_parse import get_functions, print_functions as _print_functions
+from pathlib import Path
+from .func_parse import get_functions
 
 class CodeContext:
-    DEFAULT_IGNORED = {".git", ".venv", "__pycache__"}
-    def __init__(self, start_path, extensions=None):
-        self.start_path = start_path
+    """
+    Analyzes a directory to provide context about its structure and contents,
+    respecting .gitignore rules. Data is loaded lazily upon request.
+    """
+    DEFAULT_IGNORED = {".git", ".venv", "__pycache__", "node_modules", ".DS_Store"}
+
+    def __init__(self, start_path: str = ".", extensions: list[str] | None = None):
+        """
+        Initializes the CodeContext object.
+
+        Args:
+            start_path (str): The root directory to start the analysis from.
+            extensions (list[str] | None): A list of file extensions to include (e.g., ['.py', '.js']).
+                                          If None, all files are considered (after ignoring).
+        """
+        self.start_path = Path(start_path).resolve()
         self.extensions = extensions or []
-        self.gitignore_spec = self.load_gitignore()
-        self.dir_tree = []
-        self.file_context = []
-        self.code_context = []
-        self.file_paths = []
-        self.context = ""
+        self.gitignore_spec = self._load_gitignore()
 
-        self.parse_contents()
-        self.functions = get_functions(self.file_paths)
+        # Private attributes to cache results. They are populated by properties.
+        self._file_paths: list[Path] | None = None
+        self._dir_tree: list[str] | None = None
+        self._functions: list[dict] | None = None
 
-    def load_gitignore(self):
-        gitignore_path = os.path.join(self.start_path, ".gitignore")
-        if os.path.exists(gitignore_path):
-            with open(gitignore_path, "r", encoding="utf-8") as f:
-                return pathspec.PathSpec.from_lines("gitignore", f.readlines())
-        else:
-            print(f".gitignore file not found in {self.start_path}.")
-            return None
+    # -------------------------------------------------------------------------
+    # Public Properties for Lazy Loading 
+    # -------------------------------------------------------------------------
 
-    def is_ignored(self, path):
-        if self.gitignore_spec:
-            return self.gitignore_spec.match_file(path)
-        else:
-            return False
+    @property
+    def file_paths(self) -> list[Path]:
+        """Lazily finds and returns all relevant file paths."""
+        if self._file_paths is None:
+            self._walk_and_collect()
+        return self._file_paths or []
 
-    def get_filtered_dirs(self, root, dirs):
-        """Filters out directories that are ignored based on the gitignore_spec."""
-        return [
-            d
-            for d in dirs
-            if d not in self.DEFAULT_IGNORED  # exclude these explicitly
-            and not self.is_ignored(os.path.join(root, d + "/"))
-            and not self.is_ignored(os.path.join(root, d))
-        ]
+    @property
+    def dir_tree(self) -> list[str]:
+        """Lazily generates and returns the directory tree structure."""
+        if self._dir_tree is None:
+            self._walk_and_collect()
+        return self._dir_tree or []
 
-    def get_filtered_files(self, root, files):
-        """Filters out files that are ignored based on the gitignore_spec."""
-        return [
-            f for f in files if not self.is_ignored(os.path.join(root, f))
-        ]
+    @property
+    def functions(self) -> list[dict]:
+        """Lazily parses and returns all functions from Python files."""
+        if self._functions is None:
+            # Filter for python files from the collected file paths
+            py_files = [
+                str(path) for path in self.file_paths if path.suffix == ".py"
+            ]
+            self._functions = get_functions(py_files)
+        return self._functions or []
 
-    def calculate_depth(self, root, start_path):
-        """Calculates the depth of the directory structure."""
-        return root.count(os.sep) - start_path.count(os.sep)
+    # -------------------------------------------------------------------------
+    # Public Methods for Generating Output Strings
+    # -------------------------------------------------------------------------
 
-    def get_indent(self, depth):
-        """Returns the indentation string based on the depth of the directory."""
-        return "│   " * depth + "├── "
+    def get_directory_tree_string(self) -> str:
+        """Returns the directory structure as a formatted string."""
+        return "\n".join(self.dir_tree)
 
-    def collect_file_paths(self, root, files):
-        """Collects files that match the specified extensions."""
-        file_paths = [ os.path.join(root, file) for file in files if any(file.endswith(ext) for ext in self.extensions) ]
-        return file_paths
-
-    def collect_file_contents(self, file_paths):
-        """Collects the contents of files and handles exceptions."""
+    def get_file_contents_string(self) -> str:
+        """Returns the contents of all targeted files as a single formatted string."""
         output_lines = []
-        for file_path in file_paths:
-            output_lines.append(f"\n----- {file_path} -----")
+        for file_path in self.file_paths:
+            relative_path = file_path.relative_to(self.start_path)
+            output_lines.append(f"\n----- {relative_path} -----")
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                     output_lines.append(f.read())
             except Exception as e:
                 output_lines.append(f"Error reading {file_path}: {e}")
-        return output_lines
+        return "\n".join(output_lines)
 
-    def parse_contents(self):
-        for root, dirs, files in os.walk(self.start_path):
-            # Filter directories and files based on gitignore
-            dirs[:] = self.get_filtered_dirs(root, dirs)
-            files = self.get_filtered_files(root, files)
+    def get_full_context(self) -> str:
+        """Constructs the complete context string with directory and file contents."""
+        context = "--- Directory Structure ---\n\n"
+        context += self.get_directory_tree_string()
+        context += "\n\n--- File Contents ---"
+        context += self.get_file_contents_string()
+        return context
 
-            # Calculate the depth of the directory structure
-            depth = self.calculate_depth(root, self.start_path)
-            indent = self.get_indent(depth)
-            self.dir_tree.append(f"{indent}{os.path.basename(root)}/")
+    # -------------------------------------------------------------------------
+    # Private Helper Methods
+    # -------------------------------------------------------------------------
 
-            # Collect files that match extensions
-            self.file_paths.extend(self.collect_file_paths(root, files))
+    def _load_gitignore(self) -> pathspec.PathSpec | None:
+        """Loads .gitignore patterns from the start path."""
+        gitignore_path = self.start_path / ".gitignore"
+        if gitignore_path.exists():
+            with gitignore_path.open("r", encoding="utf-8") as f:
+                return pathspec.PathSpec.from_lines("gitignore", f)
+        return None
 
-            # Collect the files in the directory
-            subindent = self.get_indent(depth + 1)
-            for file in files:
-                if any(file.endswith(ext) for ext in self.extensions):
-                    self.dir_tree.append(f"{subindent}{file}")
+    def _is_ignored(self, path: Path) -> bool:
+        """Checks if a given path should be ignored."""
+        # Check against default ignored set
+        if any(part in self.DEFAULT_IGNORED for part in path.parts):
+            return True
+        # Check against .gitignore patterns
+        if self.gitignore_spec:
+            # Use relative path for gitignore matching
+            relative_path = path.relative_to(self.start_path)
+            if self.gitignore_spec.match_file(str(relative_path)):
+                return True
+        return False
 
-        # After collecting the tree, add the contents of each file
-        self.file_context.extend(self.collect_file_contents(self.file_paths))
+    def _walk_and_collect(self) -> None:
+        """
+        Walks the directory tree once to populate both the file paths list
+        and the directory tree structure. This is the primary I/O operation.
+        """
+        self._file_paths = []
+        self._dir_tree = []
 
-        # Join all lines into a single string for printing or clipboard copying
-        self.context += "----- Directory Structure -----\n\n"
-        self.context += "\n".join(self.dir_tree)
-        self.context += "\n\n----- File Contents -----"
-        self.context += "\n\n".join(self.file_context)
+        for root_str, dirs, files in self.start_path.walk():
+            root = Path(root_str)
+            
+            # Filter directories in place to prevent traversal
+            dirs[:] = [d for d in dirs if not self._is_ignored(root / d)]
+            
+            # Calculate depth and indentation for the tree structure
+            depth = len(root.relative_to(self.start_path).parts)
+            indent = "│   " * depth + "├── "
+            self._dir_tree.append(f"{indent}{root.name}/")
 
-    def print_functions(self):
-        _print_functions(self.functions)
-
-
-
+            subindent = "│   " * (depth + 1) + "├── "
+            for file_name in files:
+                file_path = root / file_name
+                if not self._is_ignored(file_path):
+                    # If extensions are specified, filter by them
+                    if self.extensions and file_path.suffix not in self.extensions:
+                        continue
+                    
+                    self._dir_tree.append(f"{subindent}{file_name}")
+                    self._file_paths.append(file_path)
