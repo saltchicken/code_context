@@ -18,11 +18,12 @@ class CodeContext:
         self.functions = get_functions(self.file_paths)
 
     def load_gitignore(self):
-        if ".gitignore" in os.listdir():
-            with open(".gitignore", "r") as f:
+        gitignore_path = os.path.join(self.start_path, ".gitignore")
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, "r", encoding="utf-8") as f:
                 return pathspec.PathSpec.from_lines("gitignore", f.readlines())
         else:
-            print(".gitignore file not found in the current directory.")
+            print(f".gitignore file not found in {self.start_path}.")
             return None
 
     def is_ignored(self, path):
