@@ -56,7 +56,7 @@ class CodeContext:
         output_lines = []
         for file_path in self.file_paths:
             relative_path = file_path.relative_to(self.start_path)
-            output_lines.append(f'\n<file path="{relative_path}">')
+            output_lines.append(f'<file path="{relative_path}">')
             try:
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                     output_lines.append(f.read())
@@ -74,7 +74,7 @@ class CodeContext:
                 "<directory_structure>\n"
                 f"{tree_str}\n"
                 "</directory_structure>\n\n"
-                "<file_contents>"
+                "<file_contents>\n"
                 f"{files_str}\n"
                 "</file_contents>"
             )
