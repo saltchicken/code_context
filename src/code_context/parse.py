@@ -3,6 +3,7 @@ import pathspec
 from .func_parse import get_functions, print_functions as _print_functions
 
 class CodeContext:
+    DEFAULT_IGNORED = {".git", ".venv", "__pycache__"}
     def __init__(self, start_path, extensions=None):
         self.start_path = start_path
         self.extensions = extensions or []
@@ -35,7 +36,7 @@ class CodeContext:
         return [
             d
             for d in dirs
-            if d not in {".git", ".venv"}  # exclude these explicitly
+            if d not in self.DEFAULT_IGNORED  # exclude these explicitly
             and not self.is_ignored(os.path.join(root, d + "/"))
             and not self.is_ignored(os.path.join(root, d))
         ]
