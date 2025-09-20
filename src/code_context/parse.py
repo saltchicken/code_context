@@ -15,7 +15,7 @@ class CodeContext:
         Args:
             start_path (str): The root directory to start the analysis from.
             extensions (list[str] | None): A list of file extensions to include (e.g., ['.py', '.js']).
-                                          If None, all files are considered (after ignoring).
+                                            If None, all files are considered (after ignoring).
         """
         self.start_path = Path(start_path).resolve()
         self.extensions = extensions or []
@@ -26,7 +26,7 @@ class CodeContext:
         self._dir_tree: list[str] | None = None
 
     # -------------------------------------------------------------------------
-    # Public Properties for Lazy Loading 
+    # Public Properties for Lazy Loading    
     # -------------------------------------------------------------------------
 
     @property
@@ -56,21 +56,28 @@ class CodeContext:
         output_lines = []
         for file_path in self.file_paths:
             relative_path = file_path.relative_to(self.start_path)
-            output_lines.append(f"\n----- {relative_path} -----")
+            output_lines.append(f'\n<file path="{relative_path}">')
             try:
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                     output_lines.append(f.read())
             except Exception as e:
                 output_lines.append(f"Error reading {file_path}: {e}")
+            output_lines.append("</file>")
         return "\n".join(output_lines)
 
     def get_full_context(self) -> str:
-        """Constructs the complete context string with directory and file contents."""
-        context = "--- Directory Structure ---\n\n"
-        context += self.get_directory_tree_string()
-        context += "\n\n--- File Contents ---"
-        context += self.get_file_contents_string()
-        return context
+            """Constructs the complete context as a structured string."""
+            tree_str = self.get_directory_tree_string()
+            files_str = self.get_file_contents_string()
+
+            return (
+                "<directory_structure>\n"
+                f"{tree_str}\n"
+                "</directory_structure>\n\n"
+                "<file_contents>"
+                f"{files_str}\n"
+                "</file_contents>"
+            )
 
     # -------------------------------------------------------------------------
     # Private Helper Methods
@@ -111,12 +118,18 @@ class CodeContext:
             # Filter directories in place to prevent traversal
             dirs[:] = [d for d in dirs if not self._is_ignored(root / d)]
             
-            # Calculate depth and indentation for the tree structure
-            depth = len(root.relative_to(self.start_path).parts)
-            indent = "│   " * depth + "├── "
-            self._dir_tree.append(f"{indent}{root.name}/")
+            # Don't include the root directory itself in the tree output
+            if root == self.start_path:
+                depth = 0
+            else:
+                # Calculate depth relative to the start path
+                depth = len(root.relative_to(self.start_path).parts)
+                # Add the directory to the tree
+                indent = "    " * (depth - 1)
+                self._dir_tree.append(f"{indent}{root.name}/")
 
-            subindent = "│   " * (depth + 1) + "├── "
+            # Add files at the correct indentation level
+            file_indent = "    " * depth
             for file_name in files:
                 file_path = root / file_name
                 if not self._is_ignored(file_path):
@@ -124,5 +137,5 @@ class CodeContext:
                     if self.extensions and file_path.suffix not in self.extensions:
                         continue
                     
-                    self._dir_tree.append(f"{subindent}{file_name}")
+                    self._dir_tree.append(f"{file_indent}{file_name}")
                     self._file_paths.append(file_path)
