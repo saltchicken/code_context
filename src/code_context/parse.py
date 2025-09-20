@@ -3,33 +3,6 @@ import pathspec
 from .func_parse import get_functions, print_functions as _print_functions
 
 class CodeContext:
-    """
-    A class for analyzing and extracting structured information from a codebase.
-
-    This class traverses a given directory, filters files based on specified extensions and 
-    .gitignore rules, collects their contents, and extracts function definitions.
-
-    Attributes:
-        start_path (str): The root directory to start scanning.
-        extensions (list, optional): A list of file extensions to include. Defaults to an empty list.
-        gitignore_spec (pathspec.PathSpec or None): The parsed .gitignore rules, if available.
-        context (str): A formatted string representing the directory structure and file contents.
-        file_paths (list): A list of file paths matching the specified extensions.
-        dirs (list): A list of directories encountered during traversal.
-        functions (dict): A mapping of file paths to extracted function definitions.
-
-    Methods:
-        load_gitignore(): Loads and parses the .gitignore file, if present.
-        is_ignored(path): Checks if a file or directory should be ignored based on .gitignore.
-        get_filtered_dirs(root, dirs): Filters out ignored directories.
-        get_filtered_files(root, files): Filters out ignored files.
-        calculate_depth(root, start_path): Computes the depth of a directory relative to the start path.
-        get_indent(depth): Generates an indentation string for visualizing directory depth.
-        collect_file_paths(root, files): Collects file paths that match specified extensions.
-        collect_file_contents(file_paths): Reads and stores the contents of collected files.
-        parse_contents(): Performs the directory traversal, filtering, and content extraction.
-        print_functions(): Prints extracted function definitions.
-    """
     def __init__(self, start_path, extensions=None):
         self.start_path = start_path
         self.extensions = extensions or []
