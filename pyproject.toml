@@ -7,7 +7,8 @@ name = "code_context"
 version = "0.1"
 dependencies = [
   "pathspec==0.12.1",
-  "pyperclip==1.9.0"
+  "pyperclip==1.9.0",
+  "GitPython==3.1.41",
 ]
 
 [project.scripts]
