@@ -60,7 +60,7 @@ def main():
         try:
             print(f"🔄 Cloning repository from {args.repo}...")
             temp_dir = Path(tempfile.mkdtemp())
-            Repo.clone_from(args.repo, temp_dir, multi_options=['--depth=1'])
+            Repo.clone_from(args.repo, temp_dir, multi_options=['--depth=1', '--recursive'])
             start_path = str(temp_dir)
             print("✅ Clone successful.")
         except GitCommandError as e:
