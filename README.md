@@ -2,8 +2,8 @@
 
 ## Installation
 ```bash
-pip install git+https://github.com/saltchicken/code_context
 ```
+cargo install --git https://github.com/saltchicken/code_context --branch rust
 ## Usage
 
 In the top-level directory of your project (.gitignore is required)
