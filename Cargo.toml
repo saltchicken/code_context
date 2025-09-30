@@ -1,0 +1,13 @@
+[package]
+name = "code_context"
+version = "0.1.0"
+edition = "2021"
+description = "Gather and display a codebase context, useful for LLMs."
+
+[dependencies]
+anyhow = "1.0"
+arboard = "3.4"
+clap = { version = "4.5", features = ["derive"] }
+git2 = "0.18"
+ignore = "0.4"
+tempfile = "3.10"
