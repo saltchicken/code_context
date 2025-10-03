@@ -47,6 +47,14 @@ def main():
         action="store_true",
         help="Copy the generated context to the clipboard instead of printing."
     )
+    
+    parser.add_argument(
+        "--include-file-in-tree",
+        nargs="+",
+        default=[],
+        help="Specify file names to include in the directory tree but not their contents (e.g., pyproject.toml README.md).",
+        type=str
+    )
 
     args = parser.parse_args()
     
@@ -70,8 +78,12 @@ def main():
             return
 
     try:
-        # This initialization is fast because no I/O is performed yet.
-        context = CodeContext(start_path=start_path, extensions=args.extensions)
+        # MODIFIED: Pass the new argument to the CodeContext constructor.
+        context = CodeContext(
+            start_path=start_path, 
+            extensions=args.extensions,
+            include_in_tree_only=args.include_file_in_tree
+        )
         
         output_parts = []
         

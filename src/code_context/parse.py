@@ -8,17 +8,20 @@ class CodeContext:
     """
     DEFAULT_IGNORED = {".git", ".venv", "__pycache__", "node_modules", ".DS_Store"}
 
-    def __init__(self, start_path: str = ".", extensions: list[str] | None = None):
+    # MODIFIED: Updated the constructor signature.
+    def __init__(self, start_path: str = ".", extensions: list[str] | None = None, include_in_tree_only: list[str] | None = None):
         """
         Initializes the CodeContext object.
 
         Args:
             start_path (str): The root directory to start the analysis from.
-            extensions (list[str] | None): A list of file extensions to include (e.g., ['.py', '.js']).
-                                            If None, all files are considered (after ignoring).
+            extensions (list[str] | None): A list of file extensions to include for content.
+            include_in_tree_only (list[str] | None): A list of filenames to show in the tree but not in the content.
         """
         self.start_path = Path(start_path).resolve()
         self.extensions = extensions or []
+        # ADDED: Store the tree-only files in a set for efficient checking.
+        self.include_in_tree_only = set(include_in_tree_only or [])
         self.gitignore_spec = self._load_gitignore()
 
         # Private attributes to cache results. They are populated by properties.
@@ -26,7 +29,7 @@ class CodeContext:
         self._dir_tree: list[str] | None = None
 
     # -------------------------------------------------------------------------
-    # Public Properties for Lazy Loading    
+    # Public Properties for Lazy Loading   
     # -------------------------------------------------------------------------
 
     @property
@@ -113,6 +116,7 @@ class CodeContext:
                 return True
         return False
 
+    # MODIFIED: Updated walking logic to handle the new file inclusion rule.
     def _walk_and_collect(self) -> None:
         """
         Walks the directory tree once to populate both the file paths list
@@ -124,8 +128,8 @@ class CodeContext:
         for root_str, dirs, files in self.start_path.walk():
             root = Path(root_str)
             
-            # Filter directories in place to prevent traversal
-            dirs[:] = [d for d in dirs if not self._is_ignored(root / d)]
+            # Filter and sort directories in place for consistent output and to prevent traversal.
+            dirs[:] = sorted([d for d in dirs if not self._is_ignored(root / d)])
             
             # Don't include the root directory itself in the tree output
             if root == self.start_path:
@@ -139,12 +143,15 @@ class CodeContext:
 
             # Add files at the correct indentation level
             file_indent = "    " * depth
-            for file_name in files:
+            for file_name in sorted(files):
                 file_path = root / file_name
                 if not self._is_ignored(file_path):
-                    # If extensions are specified, filter by them
-                    if self.extensions and file_path.suffix not in self.extensions:
-                        continue
-                    
-                    self._dir_tree.append(f"{file_indent}{file_name}")
-                    self._file_paths.append(file_path)
+                    # Case 1: File is explicitly included in the tree only.
+                    if file_name in self.include_in_tree_only:
+                        self._dir_tree.append(f"{file_indent}{file_name}")
+                        continue # Skip to the next file without adding its content.
+
+                    # Case 2: File matches one of the specified extensions for content.
+                    if self.extensions and file_path.suffix in self.extensions:
+                        self._dir_tree.append(f"{file_indent}{file_name}")
+                        self._file_paths.append(file_path)
