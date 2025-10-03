@@ -8,8 +8,8 @@ class CodeContext:
     """
     DEFAULT_IGNORED = {".git", ".venv", "__pycache__", "node_modules", ".DS_Store"}
 
-    # MODIFIED: Updated the constructor signature.
-    def __init__(self, start_path: str = ".", extensions: list[str] | None = None, include_in_tree_only: list[str] | None = None):
+    # MODIFIED: Updated the constructor signature to accept 'only_files'.
+    def __init__(self, start_path: str = ".", extensions: list[str] | None = None, include_in_tree_only: list[str] | None = None, only_files: list[str] | None = None):
         """
         Initializes the CodeContext object.
 
@@ -17,11 +17,13 @@ class CodeContext:
             start_path (str): The root directory to start the analysis from.
             extensions (list[str] | None): A list of file extensions to include for content.
             include_in_tree_only (list[str] | None): A list of filenames to show in the tree but not in the content.
+            only_files (list[str] | None): A specific list of files to get content from, superseding extensions.
         """
         self.start_path = Path(start_path).resolve()
         self.extensions = extensions or []
-        # ADDED: Store the tree-only files in a set for efficient checking.
         self.include_in_tree_only = set(include_in_tree_only or [])
+        # ADDED: Store the list of specific files for content.
+        self.only_files = only_files or []
         self.gitignore_spec = self._load_gitignore()
 
         # Private attributes to cache results. They are populated by properties.
@@ -34,7 +36,7 @@ class CodeContext:
 
     @property
     def file_paths(self) -> list[Path]:
-        """Lazily finds and returns all relevant file paths."""
+        """Lazily finds and returns all relevant file paths for content."""
         if self._file_paths is None:
             self._walk_and_collect()
         return self._file_paths or []
@@ -57,7 +59,8 @@ class CodeContext:
     def get_file_contents_string(self) -> str:
         """Returns the contents of all targeted files as a single formatted string."""
         output_blocks = []
-        for file_path in self.file_paths:
+        # Sort file paths to ensure consistent output
+        for file_path in sorted(self.file_paths):
             relative_path = file_path.relative_to(self.start_path)
             try:
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -82,14 +85,22 @@ class CodeContext:
             tree_str = self.get_directory_tree_string()
             files_str = self.get_file_contents_string()
 
-            return (
-                "<directory_structure>\n"
-                f"{tree_str}\n"
-                "</directory_structure>\n\n"
-                "<file_contents>\n"
-                f"{files_str}\n"
-                "</file_contents>"
-            )
+            # Only include the file contents block if there are files to show
+            if files_str:
+                return (
+                    "<directory_structure>\n"
+                    f"{tree_str}\n"
+                    "</directory_structure>\n\n"
+                    "<file_contents>\n"
+                    f"{files_str}\n"
+                    "</file_contents>"
+                )
+            else:
+                 return (
+                    "<directory_structure>\n"
+                    f"{tree_str}\n"
+                    "</directory_structure>"
+                )
 
     # -------------------------------------------------------------------------
     # Private Helper Methods
@@ -105,53 +116,61 @@ class CodeContext:
 
     def _is_ignored(self, path: Path) -> bool:
         """Checks if a given path should be ignored."""
-        # Check against default ignored set
         if any(part in self.DEFAULT_IGNORED for part in path.parts):
             return True
-        # Check against .gitignore patterns
         if self.gitignore_spec:
-            # Use relative path for gitignore matching
             relative_path = path.relative_to(self.start_path)
             if self.gitignore_spec.match_file(str(relative_path)):
                 return True
         return False
 
-    # MODIFIED: Updated walking logic to handle the new file inclusion rule.
+    # MODIFIED: Reworked the walking logic to handle the new '--only-files' rule.
     def _walk_and_collect(self) -> None:
         """
-        Walks the directory tree once to populate both the file paths list
-        and the directory tree structure. This is the primary I/O operation.
+        Walks the directory tree once to populate both the file paths list (for content)
+        and the directory tree structure string list.
         """
         self._file_paths = []
         self._dir_tree = []
+        
+        # For efficient lookup, convert only_files to a set of relative paths.
+        only_files_relative = {str(Path(p).as_posix()) for p in self.only_files}
 
         for root_str, dirs, files in self.start_path.walk():
             root = Path(root_str)
             
-            # Filter and sort directories in place for consistent output and to prevent traversal.
+            # Filter and sort directories in place.
             dirs[:] = sorted([d for d in dirs if not self._is_ignored(root / d)])
             
-            # Don't include the root directory itself in the tree output
             if root == self.start_path:
                 depth = 0
             else:
-                # Calculate depth relative to the start path
                 depth = len(root.relative_to(self.start_path).parts)
-                # Add the directory to the tree
                 indent = "    " * (depth - 1)
                 self._dir_tree.append(f"{indent}{root.name}/")
 
-            # Add files at the correct indentation level
             file_indent = "    " * depth
             for file_name in sorted(files):
                 file_path = root / file_name
-                if not self._is_ignored(file_path):
-                    # Case 1: File is explicitly included in the tree only.
-                    if file_name in self.include_in_tree_only:
-                        self._dir_tree.append(f"{file_indent}{file_name}")
-                        continue # Skip to the next file without adding its content.
+                if self._is_ignored(file_path):
+                    continue
+                
+                relative_path_str = str(file_path.relative_to(self.start_path).as_posix())
+                
+                # --- Tree Logic ---
+                # A file appears in the tree if it matches extensions OR is an 'include_in_tree_only' file.
+                # This logic is independent of which file contents are included.
+                if file_name in self.include_in_tree_only or (self.extensions and file_path.suffix in self.extensions):
+                    self._dir_tree.append(f"{file_indent}{file_name}")
 
-                    # Case 2: File matches one of the specified extensions for content.
-                    if self.extensions and file_path.suffix in self.extensions:
-                        self._dir_tree.append(f"{file_indent}{file_name}")
+                # --- Content Logic ---
+                # Decide if the file's content should be included.
+                if self.only_files:
+                    # If --only-files is used, it's the sole source of truth for content.
+                    if relative_path_str in only_files_relative:
                         self._file_paths.append(file_path)
+                else:
+                    # Otherwise, use extensions, but exclude 'tree_only' files.
+                    if self.extensions and file_path.suffix in self.extensions:
+                        if file_name not in self.include_in_tree_only:
+                            self._file_paths.append(file_path)

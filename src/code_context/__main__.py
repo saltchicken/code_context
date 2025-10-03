@@ -55,6 +55,15 @@ def main():
         help="Specify file names to include in the directory tree but not their contents (e.g., pyproject.toml README.md).",
         type=str
     )
+    
+    # ADDED: New argument for specifying exact files for content.
+    parser.add_argument(
+        "--only-files",
+        nargs="+",
+        default=[],
+        help="Supersede extensions and only include the content of specified files. The tree still shows all files matching extensions.",
+        type=str
+    )
 
     args = parser.parse_args()
     
@@ -82,7 +91,8 @@ def main():
         context = CodeContext(
             start_path=start_path, 
             extensions=args.extensions,
-            include_in_tree_only=args.include_file_in_tree
+            include_in_tree_only=args.include_file_in_tree,
+            only_files=args.only_files
         )
         
         output_parts = []
@@ -112,7 +122,7 @@ def main():
             if final_output:
                 print(final_output)
             else:
-                print("No content found for the specified extensions.")
+                print("No content found for the specified extensions or files.")
                 
     finally:
         # Clean up the temporary directory if it was created
