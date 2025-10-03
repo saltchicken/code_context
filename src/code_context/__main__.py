@@ -4,7 +4,7 @@ import tempfile
 import shutil
 from pathlib import Path
 from git import Repo, GitCommandError
-from .parse import CodeContext
+from code_context.parse import CodeContext
 
 def main():
     """
