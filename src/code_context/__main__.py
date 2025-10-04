@@ -2,6 +2,7 @@ import argparse
 import pyperclip
 import tempfile
 import shutil
+import sys
 import importlib.resources
 from pathlib import Path
 from git import Repo, GitCommandError
@@ -11,6 +12,19 @@ try:
     import tomllib
 except ModuleNotFoundError:
     import tomli as tomllib
+
+def find_project_root(path: Path) -> Path | None:
+    """
+    Traverses up from the starting path to find a directory containing
+    a .git folder or a pyproject.toml file.
+    """
+    current_path = path.resolve()
+    while True:
+        if (current_path / ".git").is_dir() or (current_path / "pyproject.toml").is_file():
+            return current_path
+        if current_path.parent == current_path:  # Reached the filesystem root
+            return None
+        current_path = current_path.parent
 
 def load_presets() -> dict:
     """
@@ -83,7 +97,7 @@ def main() -> None:
     args.exclude_extensions = [f".{ext.lstrip('.')}" for ext in args.exclude_extensions]
     args.include_extensions_in_tree = [f".{ext.lstrip('.')}" for ext in args.include_extensions_in_tree]
 
-    start_path = "."
+    start_path = ""
     temp_dir = None
 
     if args.repo:
@@ -98,6 +112,14 @@ def main() -> None:
             if temp_dir:
                 shutil.rmtree(temp_dir)
             return
+    else:
+        # Find the project root by searching upwards from the current directory
+        project_root = find_project_root(Path.cwd())
+        if project_root is None:
+            print("❌ Error: Not inside a recognized project directory (.git or pyproject.toml not found).")
+            sys.exit(1)
+        start_path = str(project_root)
+        print(f"✅ Found project root at: {start_path}")
 
     try:
         context = CodeContext(
