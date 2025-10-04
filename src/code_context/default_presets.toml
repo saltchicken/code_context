@@ -1,12 +1,12 @@
 [python]
-extensions = ["py"]
-exclude = ["*.pyc", "__pycache__/", ".venv/"]
+include_extensions = ["py", "toml"]
+exclude_patterns = ["*.pyc", "__pycache__/", ".venv/"]
 
 [cpp]
-extensions = ["cpp", "txt"]
-exclude = ["node_modules/", "dist/", "build/"]
+include_extensions = ["cpp"]
+exclude_patterns = ["node_modules/", "dist/", "build/"]
 
 [rust]
-extensions = ["rs"]
-exclude = ["target/"]
+include_extensions = ["rs"]
+exclude_patterns = ["target/"]
 include_file_in_tree = ["Cargo.toml", "Cargo.lock"]

@@ -21,7 +21,6 @@ def load_presets() -> dict:
         presets_text = files.joinpath('default_presets.toml').read_text(encoding='utf-8')
         return tomllib.loads(presets_text)
     except (FileNotFoundError, ModuleNotFoundError):
-        # Return an empty dict if the file is missing for any reason
         return {}
 
 def main() -> None:
@@ -35,87 +34,54 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         description="""Gather and display a codebase context, useful for LLMs.
-        By default, it shows the directory tree and all file contents."""
+        By default, it shows the directory tree and content of included files."""
     )
     
-    parser.add_argument(
-        "--preset", 
-        choices=preset_names, 
-        help="Use a predefined set of options from pyproject.toml."
-    )
+    # --- General Action Arguments ---
+    parser.add_argument("--repo", help="URL of a Git repository to clone and analyze.", type=str)
+    parser.add_argument("--preset", choices=preset_names, help="Use a predefined set of options.")
+    parser.add_argument("--tree", action="store_true", help="Show only the directory tree structure.")
+    parser.add_argument("--copy", action="store_true", help="Copy the output to the clipboard instead of printing.")
+
+    # --- Inclusion Arguments ---
+    inc_group = parser.add_argument_group('Inclusion Options')
+    inc_group.add_argument("--include-extensions", nargs="+", default=[], help="File extensions to include for content (e.g., py js).")
+    inc_group.add_argument("--include-files", nargs="+", default=[], help="Specific files to include for content.")
+    inc_group.add_argument("--include-extension-in-tree", nargs="+", default=[], help="Extensions to show in the tree but not their content.")
+    inc_group.add_argument("--include-file-in-tree", nargs="+", default=[], help="Specific files to show in the tree but not their content.")
     
-    parser.add_argument(
-        "--extensions", 
-        nargs="+", 
-        help="List of file extensions to include (e.g., py js html).", 
-        type=str
-    )
+    # --- Exclusion Arguments ---
+    exc_group = parser.add_argument_group('Exclusion Options')
+    exc_group.add_argument("--exclude-extensions", nargs="+", default=[], help="File extensions to completely exclude.")
+    exc_group.add_argument("--exclude-files", nargs="+", default=[], help="Specific files to completely exclude.")
+    exc_group.add_argument("--exclude-patterns", nargs="+", default=[], help="List of gitignore-style patterns to exclude (e.g., 'dist/*' '*.log').")
 
-    parser.add_argument(
-        "--repo", 
-        help="URL of a Git repository to clone and analyze.", 
-        type=str
-    )
-
-    parser.add_argument(
-        "--tree", 
-        action="store_true", 
-        help="Show only the directory tree structure."
-    )
-
-    parser.add_argument(
-        "--files", 
-        action="store_true", 
-        help="Show only the contents of the files."
-    )
-    
-    parser.add_argument(
-        "--copy", 
-        action="store_true", 
-        help="Copy the generated context to the clipboard instead of printing."
-    )
-    
-    parser.add_argument(
-        "--include-file-in-tree", 
-        nargs="+", 
-        default=[], 
-        help="Specify file names to include in the directory tree but not their contents (e.g., pyproject.toml README.md).", 
-        type=str
-    )
-    
-    parser.add_argument(
-        "--only-files", 
-        nargs="+", 
-        default=[], 
-        help="Supersede extensions and only include the content of specified files. The tree still shows all files matching extensions.", 
-        type=str
-    )
-
-    parser.add_argument(
-        "--exclude", 
-        nargs="+", 
-        default=[], 
-        help="List of gitignore-style patterns to exclude (e.g., 'src/tests/*' '*.log').", 
-        type=str
-    )
-
-    # First pass to find the preset
+    # First pass to find the preset and handle its values manually
     args, _ = parser.parse_known_args()
 
-    # If a preset is chosen, set its values as defaults for the next parse
+    preset_extensions = []
     if args.preset:
-        preset_values = presets.get(args.preset, {})
+        preset_values = presets.get(args.preset, {}).copy()
+        # Pop extensions to handle them separately for merging
+        preset_extensions = preset_values.pop("include_extensions", [])
         parser.set_defaults(**preset_values)
 
     # Final parse to get the combined arguments
     args = parser.parse_args()
     
-    # Check for required arguments after defaults are set
-    if not args.extensions:
-        parser.error("The --extensions argument is required, either directly or via a preset.")
+    # --- Merge preset and command-line extensions ---
+    combined_extensions = preset_extensions + args.include_extensions
+    # Remove duplicates while preserving order
+    args.include_extensions = list(dict.fromkeys(combined_extensions))
     
-    # Ensure extensions start with a dot
-    args.extensions = [f".{ext.lstrip('.')}" for ext in args.extensions]
+    # Check for required arguments after merging
+    if not args.include_extensions and not args.include_files:
+        parser.error("Either --include-extensions or --include-files must be provided, either directly or via a preset.")
+    
+    # Normalize extensions to ensure they start with a dot
+    args.include_extensions = [f".{ext.lstrip('.')}" for ext in args.include_extensions]
+    args.exclude_extensions = [f".{ext.lstrip('.')}" for ext in args.exclude_extensions]
+    args.include_extension_in_tree = [f".{ext.lstrip('.')}" for ext in args.include_extension_in_tree]
 
     start_path = "."
     temp_dir = None
@@ -135,28 +101,21 @@ def main() -> None:
 
     try:
         context = CodeContext(
-            start_path=start_path, 
-            extensions=args.extensions,
-            include_in_tree_only=args.include_file_in_tree,
-            only_files=args.only_files,
-            exclude_patterns=args.exclude
+            start_path=start_path,
+            include_extensions=args.include_extensions,
+            exclude_extensions=args.exclude_extensions,
+            include_files=args.include_files,
+            exclude_files=args.exclude_files,
+            include_file_in_tree=args.include_file_in_tree,
+            include_extension_in_tree=args.include_extension_in_tree,
+            exclude_patterns=args.exclude_patterns,
         )
         
-        output_parts = []
-        
-        has_specific_requests = any([args.tree, args.files])
-
-        if has_specific_requests:
-            if args.tree:
-                output_parts.append(context.get_directory_tree_string())
-            
-            if args.files:
-                output_parts.append(context.get_file_contents_string())
-                
+        # Determine the output based on the arguments
+        if args.tree:
+            final_output = context.get_directory_tree_string()
         else:
-            output_parts.append(context.get_full_context())
-
-        final_output = "\n\n".join(output_parts).strip()
+            final_output = context.get_full_context()
 
         if args.copy:
             pyperclip.copy(final_output)
@@ -165,7 +124,7 @@ def main() -> None:
             if final_output:
                 print(final_output)
             else:
-                print("No content found for the specified extensions or files.")
+                print("No content found for the specified criteria.")
                 
     finally:
         if temp_dir and temp_dir.exists():
