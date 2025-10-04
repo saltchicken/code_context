@@ -8,8 +8,8 @@ class CodeContext:
     """
     DEFAULT_IGNORED = {".git", ".venv", "__pycache__", "node_modules", ".DS_Store"}
 
-    # MODIFIED: Updated the constructor signature to accept 'only_files'.
-    def __init__(self, start_path: str = ".", extensions: list[str] | None = None, include_in_tree_only: list[str] | None = None, only_files: list[str] | None = None):
+    # MODIFIED: Updated the constructor signature to accept 'exclude_patterns'.
+    def __init__(self, start_path: str = ".", extensions: list[str] | None = None, include_in_tree_only: list[str] | None = None, only_files: list[str] | None = None, exclude_patterns: list[str] | None = None):
         """
         Initializes the CodeContext object.
 
@@ -18,13 +18,16 @@ class CodeContext:
             extensions (list[str] | None): A list of file extensions to include for content.
             include_in_tree_only (list[str] | None): A list of filenames to show in the tree but not in the content.
             only_files (list[str] | None): A specific list of files to get content from, superseding extensions.
+            exclude_patterns (list[str] | None): A list of gitignore-style patterns to exclude.
         """
         self.start_path = Path(start_path).resolve()
         self.extensions = extensions or []
         self.include_in_tree_only = set(include_in_tree_only or [])
-        # ADDED: Store the list of specific files for content.
         self.only_files = only_files or []
+        
         self.gitignore_spec = self._load_gitignore()
+        # ADDED: Compile the exclude patterns into a spec for efficient matching.
+        self.exclude_spec = self._load_exclude_patterns(exclude_patterns)
 
         # Private attributes to cache results. They are populated by properties.
         self._file_paths: list[Path] | None = None
@@ -96,7 +99,7 @@ class CodeContext:
                     "</file_contents>"
                 )
             else:
-                 return (
+                return (
                     "<directory_structure>\n"
                     f"{tree_str}\n"
                     "</directory_structure>"
@@ -114,17 +117,30 @@ class CodeContext:
                 return pathspec.PathSpec.from_lines("gitignore", f)
         return None
 
+    def _load_exclude_patterns(self, patterns: list[str] | None) -> pathspec.PathSpec | None:
+        """Compiles provided exclude patterns into a PathSpec object."""
+        if patterns:
+            return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
+        return None
+
     def _is_ignored(self, path: Path) -> bool:
         """Checks if a given path should be ignored."""
         if any(part in self.DEFAULT_IGNORED for part in path.parts):
             return True
-        if self.gitignore_spec:
-            relative_path = path.relative_to(self.start_path)
-            if self.gitignore_spec.match_file(str(relative_path)):
+
+        # Only calculate relative_path if we have specs to check against.
+        if self.gitignore_spec or self.exclude_spec:
+            # Use as_posix() for consistent path separators.
+            relative_path = str(path.relative_to(self.start_path).as_posix())
+            
+            if self.gitignore_spec and self.gitignore_spec.match_file(relative_path):
                 return True
+            
+            if self.exclude_spec and self.exclude_spec.match_file(relative_path):
+                return True
+
         return False
 
-    # MODIFIED: Reworked the walking logic to handle the new '--only-files' rule.
     def _walk_and_collect(self) -> None:
         """
         Walks the directory tree once to populate both the file paths list (for content)

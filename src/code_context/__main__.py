@@ -6,7 +6,7 @@ from pathlib import Path
 from git import Repo, GitCommandError
 from code_context.parse import CodeContext
 
-def main():
+def main() -> None:
     """
     Main function for the command-line interface.
     
@@ -56,12 +56,20 @@ def main():
         type=str
     )
     
-    # ADDED: New argument for specifying exact files for content.
     parser.add_argument(
         "--only-files",
         nargs="+",
         default=[],
         help="Supersede extensions and only include the content of specified files. The tree still shows all files matching extensions.",
+        type=str
+    )
+
+    # ADDED: New argument for excluding files and directories.
+    parser.add_argument(
+        "--exclude",
+        nargs="+",
+        default=[],
+        help="List of gitignore-style patterns to exclude (e.g., 'src/tests/*' '*.log').",
         type=str
     )
 
@@ -87,12 +95,12 @@ def main():
             return
 
     try:
-        # MODIFIED: Pass the new argument to the CodeContext constructor.
         context = CodeContext(
             start_path=start_path, 
             extensions=args.extensions,
             include_in_tree_only=args.include_file_in_tree,
-            only_files=args.only_files
+            only_files=args.only_files,
+            exclude_patterns=args.exclude
         )
         
         output_parts = []
@@ -125,7 +133,6 @@ def main():
                 print("No content found for the specified extensions or files.")
                 
     finally:
-        # Clean up the temporary directory if it was created
         if temp_dir and temp_dir.exists():
             shutil.rmtree(temp_dir)
             print(f"🧹 Cleaned up temporary directory: {temp_dir}")
