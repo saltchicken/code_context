@@ -9,6 +9,7 @@ dependencies = [
   "pathspec==0.12.1",
   "pyperclip==1.9.0",
   "GitPython==3.1.41",
+  "tomli"
 ]
 
 [project.scripts]
@@ -16,4 +17,3 @@ code_context = "code_context.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
