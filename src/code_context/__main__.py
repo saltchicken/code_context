@@ -18,8 +18,8 @@ def main() -> None:
     )
     
     parser.add_argument(
-        "extensions", 
-        nargs="+", 
+        "--extensions", 
+        nargs="+",
         help="List of file extensions to include (e.g., py js html).", 
         type=str
     )
