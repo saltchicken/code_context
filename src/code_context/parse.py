@@ -104,7 +104,7 @@ class CodeContext:
         gitignore_path = self.start_path / ".gitignore"
         if gitignore_path.exists():
             with gitignore_path.open("r", encoding="utf-8") as f:
-                return pathspec.PathSpec.from_lines("gitignore", f)
+                return pathspec.PathSpec.from_lines("gitwildmatch", f)
         return None
 
     def _load_exclude_patterns(self, patterns: list[str] | None) -> pathspec.PathSpec | None:
