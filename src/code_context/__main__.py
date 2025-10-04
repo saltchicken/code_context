@@ -47,8 +47,8 @@ def main() -> None:
     inc_group = parser.add_argument_group('Inclusion Options')
     inc_group.add_argument("--include-extensions", nargs="+", default=[], help="File extensions to include for content (e.g., py js).")
     inc_group.add_argument("--include-files", nargs="+", default=[], help="Specific files to include for content.")
-    inc_group.add_argument("--include-extension-in-tree", nargs="+", default=[], help="Extensions to show in the tree but not their content.")
-    inc_group.add_argument("--include-file-in-tree", nargs="+", default=[], help="Specific files to show in the tree but not their content.")
+    inc_group.add_argument("--include-extensions-in-tree", nargs="+", default=[], help="Extensions to show in the tree but not their content.")
+    inc_group.add_argument("--include-files-in-tree", nargs="+", default=[], help="Specific files to show in the tree but not their content.")
     
     # --- Exclusion Arguments ---
     exc_group = parser.add_argument_group('Exclusion Options')
@@ -81,7 +81,7 @@ def main() -> None:
     # Normalize extensions to ensure they start with a dot
     args.include_extensions = [f".{ext.lstrip('.')}" for ext in args.include_extensions]
     args.exclude_extensions = [f".{ext.lstrip('.')}" for ext in args.exclude_extensions]
-    args.include_extension_in_tree = [f".{ext.lstrip('.')}" for ext in args.include_extension_in_tree]
+    args.include_extensions_in_tree = [f".{ext.lstrip('.')}" for ext in args.include_extensions_in_tree]
 
     start_path = "."
     temp_dir = None
@@ -106,8 +106,8 @@ def main() -> None:
             exclude_extensions=args.exclude_extensions,
             include_files=args.include_files,
             exclude_files=args.exclude_files,
-            include_file_in_tree=args.include_file_in_tree,
-            include_extension_in_tree=args.include_extension_in_tree,
+            include_files_in_tree=args.include_files_in_tree,
+            include_extensions_in_tree=args.include_extensions_in_tree,
             exclude_patterns=args.exclude_patterns,
         )
         

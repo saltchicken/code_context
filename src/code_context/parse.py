@@ -13,8 +13,8 @@ class CodeContext:
                  exclude_extensions: list[str] | None = None,
                  include_files: list[str] | None = None,
                  exclude_files: list[str] | None = None,
-                 include_file_in_tree: list[str] | None = None,
-                 include_extension_in_tree: list[str] | None = None,
+                 include_files_in_tree: list[str] | None = None,
+                 include_extensions_in_tree: list[str] | None = None,
                  exclude_patterns: list[str] | None = None):
         """
         Initializes the CodeContext object with detailed filtering rules.
@@ -24,8 +24,8 @@ class CodeContext:
         # --- Inclusion Rules ---
         self.include_extensions = set(include_extensions or [])
         self.include_files = {str(Path(p).as_posix()) for p in (include_files or [])}
-        self.include_file_in_tree = set(include_file_in_tree or [])
-        self.include_extension_in_tree = set(include_extension_in_tree or [])
+        self.include_files_in_tree = set(include_files_in_tree or [])
+        self.include_extensions_in_tree = set(include_extensions_in_tree or [])
         
         # --- Exclusion Rules ---
         self.exclude_extensions = set(exclude_extensions or [])
@@ -173,8 +173,8 @@ class CodeContext:
                 )
 
                 is_tree_only = (
-                    file_name in self.include_file_in_tree or
-                    file_path.suffix in self.include_extension_in_tree
+                    file_name in self.include_files_in_tree or
+                    file_path.suffix in self.include_extensions_in_tree
                 )
 
                 if is_content_candidate or is_tree_only:
