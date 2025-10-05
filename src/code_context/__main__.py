@@ -28,14 +28,16 @@ def find_project_root(path: Path) -> Path | None:
 
 def load_presets() -> dict:
     """
-    Loads the built-in presets from the packaged `default_presets.toml` file.
+    Loads presets from the user's configuration file at ~/.config/code_context/presets.toml.
     """
-    try:
-        files = importlib.resources.files('code_context')
-        presets_text = files.joinpath('default_presets.toml').read_text(encoding='utf-8')
-        return tomllib.loads(presets_text)
-    except (FileNotFoundError, ModuleNotFoundError):
-        return {}
+    user_config_path = Path.home() / ".config" / "code_context" / "presets.toml"
+    if user_config_path.is_file():
+        try:
+            presets_text = user_config_path.read_text(encoding='utf-8')
+            return tomllib.loads(presets_text)
+        except Exception as e:
+            print(f"⚠️ Warning: Could not parse user presets at {user_config_path}: {e}", file=sys.stderr)
+    return {}
 
 def main() -> None:
     """
