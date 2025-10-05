@@ -37,6 +37,9 @@ def load_presets() -> dict:
             return tomllib.loads(presets_text)
         except Exception as e:
             print(f"⚠️ Warning: Could not parse user presets at {user_config_path}: {e}", file=sys.stderr)
+    else:
+        print(f"⚠️ Warning: User presets not found at {user_config_path}", file=sys.stderr)
+
     return {}
 
 def main() -> None:
