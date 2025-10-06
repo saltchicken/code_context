@@ -1,11 +1,9 @@
 import argparse
 import pyperclip
-import tempfile
 import shutil
 import sys
 import importlib.resources
 from pathlib import Path
-from git import Repo, GitCommandError
 from code_context.parse import CodeContext
 
 try:
@@ -57,7 +55,6 @@ def main() -> None:
     )
     
     # --- General Action Arguments ---
-    parser.add_argument("--repo", help="URL of a Git repository to clone and analyze.", type=str)
     parser.add_argument("--preset", choices=preset_names, help="Use a predefined set of options.")
     parser.add_argument("--tree", action="store_true", help="Show only the directory tree structure.")
     parser.add_argument("--copy", action="store_true", help="Copy the output to the clipboard instead of printing.")
@@ -78,9 +75,7 @@ def main() -> None:
     # First pass to find the preset and handle its values manually
     args, _ = parser.parse_known_args()
 
-    project_root = None
-    if not args.repo:
-        project_root = find_project_root(Path.cwd())
+    project_root = find_project_root(Path.cwd())
 
     if not args.preset and project_root and project_root.name in presets:
         print(f"✅ Found matching preset '{project_root.name}' for the project directory.")
@@ -117,60 +112,37 @@ def main() -> None:
     args.exclude_extensions = [f".{ext.lstrip('.')}" for ext in args.exclude_extensions]
     args.include_extensions_in_tree = [f".{ext.lstrip('.')}" for ext in args.include_extensions_in_tree]
 
-    start_path = ""
-    temp_dir = None
+    if project_root is None:
+        print("❌ Error: Not inside a recognized project directory (.git or pyproject.toml not found).")
+        sys.exit(1)
+    start_path = str(project_root)
+    # print(f"✅ Found project root at: {start_path}")
 
-    if args.repo:
-        try:
-            print(f"🔄 Cloning repository from {args.repo}...")
-            temp_dir = Path(tempfile.mkdtemp())
-            Repo.clone_from(args.repo, temp_dir, multi_options=['--depth=1', '--recursive'])
-            start_path = str(temp_dir)
-            print("✅ Clone successful.")
-        except GitCommandError as e:
-            print(f"❌ Error cloning repository: {e}")
-            if temp_dir:
-                shutil.rmtree(temp_dir)
-            return
+    context = CodeContext(
+        start_path=start_path,
+        include_extensions=args.include_extensions,
+        exclude_extensions=args.exclude_extensions,
+        include_files=args.include_files,
+        exclude_files=args.exclude_files,
+        include_files_in_tree=args.include_files_in_tree,
+        include_extensions_in_tree=args.include_extensions_in_tree,
+        exclude_patterns=args.exclude_patterns,
+    )
+    
+    # Determine the output based on the arguments
+    if args.tree:
+        final_output = context.get_directory_tree_string()
     else:
-        # Find the project root by searching upwards from the current directory
-        if project_root is None:
-            print("❌ Error: Not inside a recognized project directory (.git or pyproject.toml not found).")
-            sys.exit(1)
-        start_path = str(project_root)
-        print(f"✅ Found project root at: {start_path}")
+        final_output = context.get_full_context()
 
-    try:
-        context = CodeContext(
-            start_path=start_path,
-            include_extensions=args.include_extensions,
-            exclude_extensions=args.exclude_extensions,
-            include_files=args.include_files,
-            exclude_files=args.exclude_files,
-            include_files_in_tree=args.include_files_in_tree,
-            include_extensions_in_tree=args.include_extensions_in_tree,
-            exclude_patterns=args.exclude_patterns,
-        )
-        
-        # Determine the output based on the arguments
-        if args.tree:
-            final_output = context.get_directory_tree_string()
+    if args.copy:
+        pyperclip.copy(final_output)
+        print("✅ Context copied to clipboard.")
+    else:
+        if final_output:
+            print(final_output)
         else:
-            final_output = context.get_full_context()
-
-        if args.copy:
-            pyperclip.copy(final_output)
-            print("✅ Context copied to clipboard.")
-        else:
-            if final_output:
-                print(final_output)
-            else:
-                print("No content found for the specified criteria.")
-                
-    finally:
-        if temp_dir and temp_dir.exists():
-            shutil.rmtree(temp_dir)
-            print(f"🧹 Cleaned up temporary directory: {temp_dir}")
+            print("No content found for the specified criteria.")
 
 if __name__ == "__main__":
     main()

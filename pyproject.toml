@@ -4,11 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "code_context"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
   "pathspec==0.12.1",
   "pyperclip==1.9.0",
-  "GitPython==3.1.41",
   "tomli"
 ]
 
