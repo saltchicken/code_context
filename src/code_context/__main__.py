@@ -59,57 +59,33 @@ def main() -> None:
 
     # --- Filtering Arguments ---
     filter_group = parser.add_argument_group('Filtering Options (gitignore-style patterns)')
-    filter_group.add_argument("--include", nargs="+", default=[], dest="include",
+    filter_group.add_argument("--include", nargs="+", default=[],
                               help="Patterns for files to include for content (e.g., 'src/**/*.py', '*.md').")
-    filter_group.add_argument("--include-in-tree", nargs="+", default=[], dest="include_in_tree",
+    filter_group.add_argument("--include-in-tree", nargs="+", default=[],
                               help="Patterns for files to show in the tree but without their content (e.g., '__init__.py').")
-    filter_group.add_argument("--exclude", nargs="+", default=[], dest="exclude",
+    filter_group.add_argument("--exclude", nargs="+", default=[],
                               help="Patterns for files or directories to exclude (e.g., 'dist/*', '*.log').")
 
     # --- Preset and Argument Merging ---
-    # First pass to find the preset
-    args, _ = parser.parse_known_args()
+    args = parser.parse_args()
     project_root = find_project_root(Path.cwd())
 
-    # Auto-select preset if project directory name matches a preset name
-    if not args.preset and project_root and project_root.name in presets:
+    # Determine which preset to use (CLI > auto-detect)
+    preset_key = args.preset
+    if not preset_key and project_root and project_root.name in presets:
         print(f"✅ Found matching preset '{project_root.name}' for the project directory.")
-        args.preset = project_root.name
-
-    # Set preset defaults if one is selected
-    if args.preset:
-        preset_values = presets.get(args.preset, {})
-        parser.set_defaults(**preset_values)
-
-    # Final parse to get the combined arguments
-    args = parser.parse_args()
+        preset_key = project_root.name
     
-    # Manually merge list-based arguments from preset and command-line
-    final_args = {"include": [], "exclude": [], "include_in_tree": []}
-    if args.preset:
-        preset_values = presets.get(args.preset, {})
-        for key in final_args:
-            final_args[key].extend(preset_values.get(key, []))
+    preset_values = presets.get(preset_key, {}) if preset_key else {}
 
-    # Add command-line arguments, which take precedence if provided
-    raw_args = sys.argv[1:]
-    if "--include" in raw_args:
-        final_args["include"] = args.include
-    else:
-        final_args["include"].extend(args.include)
+    # Combine preset and command-line arguments, then remove duplicates
+    final_include = list(dict.fromkeys(preset_values.get('include', []) + args.include))
+    final_exclude = list(dict.fromkeys(preset_values.get('exclude', []) + args.exclude))
+    final_include_in_tree = list(dict.fromkeys(preset_values.get('include_in_tree', []) + args.include_in_tree))
 
-    if "--exclude" in raw_args:
-        final_args["exclude"] = args.exclude
-    else:
-        final_args["exclude"].extend(args.exclude)
-        
-    if "--include-in-tree" in raw_args:
-        final_args["include_in_tree"] = args.include_in_tree
-    else:
-        final_args["include_in_tree"].extend(args.include_in_tree)
 
     # --- Validation ---
-    if not final_args["include"]:
+    if not final_include:
         if project_root and project_root.name not in presets:
             tip = (
                 f"\n💡 Tip: No automatic preset found for '{project_root.name}'.\n"
@@ -127,9 +103,9 @@ def main() -> None:
 
     context = CodeContext(
         start_path=start_path,
-        include=list(dict.fromkeys(final_args["include"])),
-        exclude=list(dict.fromkeys(final_args["exclude"])),
-        include_in_tree=list(dict.fromkeys(final_args["include_in_tree"])),
+        include=final_include,
+        exclude=final_exclude,
+        include_in_tree=final_include_in_tree,
     )
     
     # --- Output Generation ---
