@@ -78,6 +78,14 @@ def main() -> None:
     # First pass to find the preset and handle its values manually
     args, _ = parser.parse_known_args()
 
+    project_root = None
+    if not args.repo:
+        project_root = find_project_root(Path.cwd())
+
+    if not args.preset and project_root and project_root.name in presets:
+        print(f"✅ Found matching preset '{project_root.name}' for the project directory.")
+        args.preset = project_root.name
+
     preset_extensions = []
     if args.preset:
         preset_values = presets.get(args.preset, {}).copy()
@@ -95,6 +103,13 @@ def main() -> None:
     
     # Check for required arguments after merging
     if not args.include_extensions and not args.include_files:
+        if project_root and project_root.name not in presets:
+            tip = (
+                f"\n💡 Tip: No automatic preset found for '{project_root.name}'.\n"
+                f"   To run `code_context` without arguments here, create a preset named "
+                f"'[{project_root.name}]' in:\n   {Path.home() / '.config' / 'code_context' / 'presets.toml'}"
+            )
+            print(tip, file=sys.stderr)
         parser.error("Either --include-extensions or --include-files must be provided, either directly or via a preset.")
     
     # Normalize extensions to ensure they start with a dot
@@ -119,7 +134,6 @@ def main() -> None:
             return
     else:
         # Find the project root by searching upwards from the current directory
-        project_root = find_project_root(Path.cwd())
         if project_root is None:
             print("❌ Error: Not inside a recognized project directory (.git or pyproject.toml not found).")
             sys.exit(1)
