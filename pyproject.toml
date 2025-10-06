@@ -14,10 +14,5 @@ dependencies = [
 [project.scripts]
 code_context = "code_context.__main__:main"
 
-[project.optional-dependencies]
-test = [
-  "pytest"
-]
-
 [tool.setuptools.packages.find]
 where = ["src"]
