@@ -8,34 +8,22 @@ class CodeContext:
     """
     DEFAULT_IGNORED = {".git", ".venv", "__pycache__", "node_modules", ".DS_Store"}
 
-    def __init__(self, start_path: str = ".", 
-                 include_extensions: list[str] | None = None,
-                 exclude_extensions: list[str] | None = None,
-                 include_files: list[str] | None = None,
-                 exclude_files: list[str] | None = None,
-                 include_files_in_tree: list[str] | None = None,
-                 include_extensions_in_tree: list[str] | None = None,
-                 exclude_patterns: list[str] | None = None,
-                 include_patterns: list[str] | None = None):
+    def __init__(self, start_path: str = ".",
+                 include: list[str] | None = None,
+                 exclude: list[str] | None = None,
+                 include_in_tree: list[str] | None = None):
         """
-        Initializes the CodeContext object with detailed filtering rules.
+        Initializes the CodeContext object with gitignore-style filtering rules.
         """
         self.start_path = Path(start_path).resolve()
 
-        # --- Inclusion Rules ---
-        self.include_extensions = set(include_extensions or [])
-        self.include_files = {str(Path(p).as_posix()) for p in (include_files or [])}
-        self.include_files_in_tree = set(include_files_in_tree or [])
-        self.include_extensions_in_tree = set(include_extensions_in_tree or [])
-        self.include_spec = self._compile_spec_from_patterns(include_patterns)
+        # --- Compile PathSpec objects from patterns ---
+        self.include_spec = self._compile_spec_from_patterns(include)
+        self.tree_only_spec = self._compile_spec_from_patterns(include_in_tree)
         
         # --- Exclusion Rules ---
-        self.exclude_extensions = set(exclude_extensions or [])
-        self.exclude_files = {str(Path(p).as_posix()) for p in (exclude_files or [])}
-        
-        # --- Pattern-based Exclusion ---
         self.gitignore_spec = self._load_gitignore()
-        self.exclude_spec = self._compile_spec_from_patterns(exclude_patterns)
+        self.exclude_spec = self._compile_spec_from_patterns(exclude)
         
         # --- Caches ---
         self._file_paths_content: list[Path] | None = None
@@ -115,44 +103,38 @@ class CodeContext:
             return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
         return None
 
-    def _is_path_excluded(self, path: Path, relative_path_str: str | None = None) -> bool:
+    def _is_path_excluded(self, path: Path, relative_path_str: str) -> bool:
         """Checks if a given path should be excluded based on any rule."""
         if any(part in self.DEFAULT_IGNORED for part in path.parts):
             return True
         
-        # Only calculate relative path if needed for file checks
-        if path.is_file():
-            if relative_path_str is None:
-                 relative_path_str = str(path.relative_to(self.start_path).as_posix())
-            if path.suffix in self.exclude_extensions:
-                return True
-            if relative_path_str in self.exclude_files:
-                return True
-
-        if self.gitignore_spec or self.exclude_spec:
-            if relative_path_str is None:
-                relative_path_str = str(path.relative_to(self.start_path).as_posix())
-            
-            if self.gitignore_spec and self.gitignore_spec.match_file(relative_path_str):
-                return True
-            
-            if self.exclude_spec and self.exclude_spec.match_file(relative_path_str):
-                return True
+        if self.gitignore_spec and self.gitignore_spec.match_file(relative_path_str):
+            return True
+        
+        if self.exclude_spec and self.exclude_spec.match_file(relative_path_str):
+            return True
 
         return False
 
     def _walk_and_collect(self) -> None:
         """
         Walks the directory tree to populate file paths and the tree structure,
-        applying all inclusion and exclusion rules.
+        applying all inclusion and exclusion rules from the compiled PathSpec objects.
         """
         self._file_paths_content = []
         self._dir_tree = []
 
         for root_str, dirs, files in self.start_path.walk():
             root = Path(root_str)
-            
-            dirs[:] = sorted([d for d in dirs if not self._is_path_excluded(root / d)])
+            relative_root_str = str(root.relative_to(self.start_path).as_posix())
+            if relative_root_str == '.':
+                relative_root_str = ''
+
+            # Filter directories in-place
+            dirs[:] = sorted([
+                d for d in dirs 
+                if not self._is_path_excluded(root / d, f"{relative_root_str}/{d}" if relative_root_str else d)
+            ])
             
             if root == self.start_path:
                 depth = 0
@@ -169,23 +151,18 @@ class CodeContext:
                 if self._is_path_excluded(file_path, relative_path_str):
                     continue
 
-                matches_include_pattern = (
+                matches_content = (
                     self.include_spec and self.include_spec.match_file(relative_path_str)
                 )
-
-                is_content_candidate = (
-                    relative_path_str in self.include_files or
-                    (self.include_extensions and file_path.suffix in self.include_extensions) or
-                    matches_include_pattern
+                matches_tree_only = (
+                    self.tree_only_spec and self.tree_only_spec.match_file(relative_path_str)
                 )
 
-                is_tree_only = (
-                    file_name in self.include_files_in_tree or
-                    file_path.suffix in self.include_extensions_in_tree
-                )
-
-                if is_content_candidate or is_tree_only:
+                # A file appears in the tree if it matches content patterns OR tree-only patterns.
+                if matches_content or matches_tree_only:
                     self._dir_tree.append(f"{file_indent}{file_name}")
 
-                if is_content_candidate and not is_tree_only:
+                # A file's content is added only if it's a content match AND NOT a tree-only match.
+                # This allows tree-only patterns to override content inclusion.
+                if matches_content and not matches_tree_only:
                     self._file_paths_content.append(file_path)

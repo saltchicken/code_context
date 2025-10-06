@@ -1,8 +1,6 @@
 import argparse
 import pyperclip
-import shutil
 import sys
-import importlib.resources
 from pathlib import Path
 from code_context.parse import CodeContext
 
@@ -55,83 +53,86 @@ def main() -> None:
     )
     
     # --- General Action Arguments ---
-    parser.add_argument("--preset", choices=preset_names, help="Use a predefined set of options.")
+    parser.add_argument("--preset", choices=preset_names, help="Use a predefined set of options from presets.toml.")
     parser.add_argument("--tree", action="store_true", help="Show only the directory tree structure.")
     parser.add_argument("--copy", action="store_true", help="Copy the output to the clipboard instead of printing.")
 
-    # --- Inclusion Arguments ---
-    inc_group = parser.add_argument_group('Inclusion Options')
-    inc_group.add_argument("--include-extensions", nargs="+", default=[], help="File extensions to include for content (e.g., py js).")
-    inc_group.add_argument("--include-files", nargs="+", default=[], help="Specific files to include for content.")
-    inc_group.add_argument("--include-extensions-in-tree", nargs="+", default=[], help="Extensions to show in the tree but not their content.")
-    inc_group.add_argument("--include-files-in-tree", nargs="+", default=[], help="Specific files to show in the tree but not their content.")
-    inc_group.add_argument("--include-patterns", nargs="+", default=[], help="List of gitignore-style patterns to include for content (e.g., 'src/**/*.py' '*.md').")
-    
-    # --- Exclusion Arguments ---
-    exc_group = parser.add_argument_group('Exclusion Options')
-    exc_group.add_argument("--exclude-extensions", nargs="+", default=[], help="File extensions to completely exclude.")
-    exc_group.add_argument("--exclude-files", nargs="+", default=[], help="Specific files to completely exclude.")
-    exc_group.add_argument("--exclude-patterns", nargs="+", default=[], help="List of gitignore-style patterns to exclude (e.g., 'dist/*' '*.log').")
+    # --- Filtering Arguments ---
+    filter_group = parser.add_argument_group('Filtering Options (gitignore-style patterns)')
+    filter_group.add_argument("--include", nargs="+", default=[], dest="include",
+                              help="Patterns for files to include for content (e.g., 'src/**/*.py', '*.md').")
+    filter_group.add_argument("--include-in-tree", nargs="+", default=[], dest="include_in_tree",
+                              help="Patterns for files to show in the tree but without their content (e.g., '__init__.py').")
+    filter_group.add_argument("--exclude", nargs="+", default=[], dest="exclude",
+                              help="Patterns for files or directories to exclude (e.g., 'dist/*', '*.log').")
 
-    # First pass to find the preset and handle its values manually
+    # --- Preset and Argument Merging ---
+    # First pass to find the preset
     args, _ = parser.parse_known_args()
-
     project_root = find_project_root(Path.cwd())
 
+    # Auto-select preset if project directory name matches a preset name
     if not args.preset and project_root and project_root.name in presets:
         print(f"✅ Found matching preset '{project_root.name}' for the project directory.")
         args.preset = project_root.name
 
-    preset_extensions = []
+    # Set preset defaults if one is selected
     if args.preset:
-        preset_values = presets.get(args.preset, {}).copy()
-        # Pop extensions to handle them separately for merging
-        preset_extensions = preset_values.pop("include_extensions", [])
+        preset_values = presets.get(args.preset, {})
         parser.set_defaults(**preset_values)
 
     # Final parse to get the combined arguments
     args = parser.parse_args()
     
-    # --- Merge preset and command-line extensions ---
-    combined_extensions = preset_extensions + args.include_extensions
-    # Remove duplicates while preserving order
-    args.include_extensions = list(dict.fromkeys(combined_extensions))
-    
-    # Check for required arguments after merging
-    if not args.include_extensions and not args.include_files and not args.include_patterns:
+    # Manually merge list-based arguments from preset and command-line
+    final_args = {"include": [], "exclude": [], "include_in_tree": []}
+    if args.preset:
+        preset_values = presets.get(args.preset, {})
+        for key in final_args:
+            final_args[key].extend(preset_values.get(key, []))
+
+    # Add command-line arguments, which take precedence if provided
+    raw_args = sys.argv[1:]
+    if "--include" in raw_args:
+        final_args["include"] = args.include
+    else:
+        final_args["include"].extend(args.include)
+
+    if "--exclude" in raw_args:
+        final_args["exclude"] = args.exclude
+    else:
+        final_args["exclude"].extend(args.exclude)
+        
+    if "--include-in-tree" in raw_args:
+        final_args["include_in_tree"] = args.include_in_tree
+    else:
+        final_args["include_in_tree"].extend(args.include_in_tree)
+
+    # --- Validation ---
+    if not final_args["include"]:
         if project_root and project_root.name not in presets:
             tip = (
                 f"\n💡 Tip: No automatic preset found for '{project_root.name}'.\n"
-                f"   To run `code_context` without arguments here, create a preset named "
-                f"'[{project_root.name}]' in:\n   {Path.home() / '.config' / 'code_context' / 'presets.toml'}"
+                f"  To run `code_context` without arguments here, create a preset named "
+                f"'[{project_root.name}]' in:\n  {Path.home() / '.config' / 'code_context' / 'presets.toml'}"
             )
             print(tip, file=sys.stderr)
-        parser.error("Either --include-extensions, --include-files, or --include-patterns must be provided, either directly or via a preset.")
+        parser.error("At least one --include value must be provided, either directly or via a preset.")
     
-    # Normalize extensions to ensure they start with a dot
-    args.include_extensions = [f".{ext.lstrip('.')}" for ext in args.include_extensions]
-    args.exclude_extensions = [f".{ext.lstrip('.')}" for ext in args.exclude_extensions]
-    args.include_extensions_in_tree = [f".{ext.lstrip('.')}" for ext in args.include_extensions_in_tree]
-
     if project_root is None:
         print("❌ Error: Not inside a recognized project directory (.git or pyproject.toml not found).")
         sys.exit(1)
+    
     start_path = str(project_root)
-    # print(f"✅ Found project root at: {start_path}")
 
     context = CodeContext(
         start_path=start_path,
-        include_extensions=args.include_extensions,
-        exclude_extensions=args.exclude_extensions,
-        include_files=args.include_files,
-        exclude_files=args.exclude_files,
-        include_files_in_tree=args.include_files_in_tree,
-        include_extensions_in_tree=args.include_extensions_in_tree,
-        exclude_patterns=args.exclude_patterns,
-        include_patterns=args.include_patterns,
+        include=list(dict.fromkeys(final_args["include"])),
+        exclude=list(dict.fromkeys(final_args["exclude"])),
+        include_in_tree=list(dict.fromkeys(final_args["include_in_tree"])),
     )
     
-    # Determine the output based on the arguments
+    # --- Output Generation ---
     if args.tree:
         final_output = context.get_directory_tree_string()
     else:
