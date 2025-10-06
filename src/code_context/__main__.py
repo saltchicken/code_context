@@ -65,6 +65,7 @@ def main() -> None:
     inc_group.add_argument("--include-files", nargs="+", default=[], help="Specific files to include for content.")
     inc_group.add_argument("--include-extensions-in-tree", nargs="+", default=[], help="Extensions to show in the tree but not their content.")
     inc_group.add_argument("--include-files-in-tree", nargs="+", default=[], help="Specific files to show in the tree but not their content.")
+    inc_group.add_argument("--include-patterns", nargs="+", default=[], help="List of gitignore-style patterns to include for content (e.g., 'src/**/*.py' '*.md').")
     
     # --- Exclusion Arguments ---
     exc_group = parser.add_argument_group('Exclusion Options')
@@ -97,7 +98,7 @@ def main() -> None:
     args.include_extensions = list(dict.fromkeys(combined_extensions))
     
     # Check for required arguments after merging
-    if not args.include_extensions and not args.include_files:
+    if not args.include_extensions and not args.include_files and not args.include_patterns:
         if project_root and project_root.name not in presets:
             tip = (
                 f"\n💡 Tip: No automatic preset found for '{project_root.name}'.\n"
@@ -105,7 +106,7 @@ def main() -> None:
                 f"'[{project_root.name}]' in:\n   {Path.home() / '.config' / 'code_context' / 'presets.toml'}"
             )
             print(tip, file=sys.stderr)
-        parser.error("Either --include-extensions or --include-files must be provided, either directly or via a preset.")
+        parser.error("Either --include-extensions, --include-files, or --include-patterns must be provided, either directly or via a preset.")
     
     # Normalize extensions to ensure they start with a dot
     args.include_extensions = [f".{ext.lstrip('.')}" for ext in args.include_extensions]
@@ -127,6 +128,7 @@ def main() -> None:
         include_files_in_tree=args.include_files_in_tree,
         include_extensions_in_tree=args.include_extensions_in_tree,
         exclude_patterns=args.exclude_patterns,
+        include_patterns=args.include_patterns,
     )
     
     # Determine the output based on the arguments

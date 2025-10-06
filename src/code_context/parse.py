@@ -15,7 +15,8 @@ class CodeContext:
                  exclude_files: list[str] | None = None,
                  include_files_in_tree: list[str] | None = None,
                  include_extensions_in_tree: list[str] | None = None,
-                 exclude_patterns: list[str] | None = None):
+                 exclude_patterns: list[str] | None = None,
+                 include_patterns: list[str] | None = None):
         """
         Initializes the CodeContext object with detailed filtering rules.
         """
@@ -26,6 +27,7 @@ class CodeContext:
         self.include_files = {str(Path(p).as_posix()) for p in (include_files or [])}
         self.include_files_in_tree = set(include_files_in_tree or [])
         self.include_extensions_in_tree = set(include_extensions_in_tree or [])
+        self.include_spec = self._compile_spec_from_patterns(include_patterns)
         
         # --- Exclusion Rules ---
         self.exclude_extensions = set(exclude_extensions or [])
@@ -33,7 +35,7 @@ class CodeContext:
         
         # --- Pattern-based Exclusion ---
         self.gitignore_spec = self._load_gitignore()
-        self.exclude_spec = self._load_exclude_patterns(exclude_patterns)
+        self.exclude_spec = self._compile_spec_from_patterns(exclude_patterns)
         
         # --- Caches ---
         self._file_paths_content: list[Path] | None = None
@@ -107,8 +109,8 @@ class CodeContext:
                 return pathspec.PathSpec.from_lines("gitwildmatch", f)
         return None
 
-    def _load_exclude_patterns(self, patterns: list[str] | None) -> pathspec.PathSpec | None:
-        """Compiles provided exclude patterns into a PathSpec object."""
+    def _compile_spec_from_patterns(self, patterns: list[str] | None) -> pathspec.PathSpec | None:
+        """Compiles provided gitwildmatch patterns into a PathSpec object."""
         if patterns:
             return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
         return None
@@ -167,9 +169,14 @@ class CodeContext:
                 if self._is_path_excluded(file_path, relative_path_str):
                     continue
 
+                matches_include_pattern = (
+                    self.include_spec and self.include_spec.match_file(relative_path_str)
+                )
+
                 is_content_candidate = (
                     relative_path_str in self.include_files or
-                    (self.include_extensions and file_path.suffix in self.include_extensions)
+                    (self.include_extensions and file_path.suffix in self.include_extensions) or
+                    matches_include_pattern
                 )
 
                 is_tree_only = (
