@@ -1,5 +1,6 @@
 import argparse
 import sys
+import logging
 from pathlib import Path
 from code_context.parse import CodeContext
 
@@ -7,6 +8,7 @@ try:
     import tomllib
 except ModuleNotFoundError:
     import tomli as tomllib
+
 
 def find_project_root(path: Path) -> Path | None:
     """
@@ -21,6 +23,7 @@ def find_project_root(path: Path) -> Path | None:
             return None
         current_path = current_path.parent
 
+
 def load_presets() -> dict:
     """
     Loads presets from the user's configuration file at ~/.config/code_context/presets.toml.
@@ -31,26 +34,31 @@ def load_presets() -> dict:
             presets_text = user_config_path.read_text(encoding='utf-8')
             return tomllib.loads(presets_text)
         except Exception as e:
-            print(f"⚠️ Warning: Could not parse user presets at {user_config_path}: {e}", file=sys.stderr)
+            logging.warning(f"⚠️ Could not parse user presets at {user_config_path}: {e}")
     else:
-        print(f"⚠️ Warning: User presets not found at {user_config_path}", file=sys.stderr)
-
+        logging.warning(f"⚠️ User presets not found at {user_config_path}")
     return {}
+
 
 def main() -> None:
     """
     Main function for the command-line interface.
-    
+
     Parses arguments to determine what context to gather and how to output it.
     """
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",  # Keep the output clean, as messages have their own indicators
+        stream=sys.stderr,
+    )
+
     presets = load_presets()
     preset_names = list(presets.keys())
-
     parser = argparse.ArgumentParser(
         description="""Gather and display a codebase context, useful for LLMs.
         By default, it shows the directory tree and content of included files."""
     )
-    
+
     # --- General Action Arguments ---
     parser.add_argument("--preset", choices=preset_names, help="Use a predefined set of options from presets.toml.")
     parser.add_argument("--tree", action="store_true", help="Show only the directory tree structure.")
@@ -71,16 +79,13 @@ def main() -> None:
     # Determine which preset to use (CLI > auto-detect)
     preset_key = args.preset
     if not preset_key and project_root and project_root.name in presets:
-        print(f"✅ Found matching preset '{project_root.name}' for the project directory.")
         preset_key = project_root.name
-    
-    preset_values = presets.get(preset_key, {}) if preset_key else {}
 
+    preset_values = presets.get(preset_key, {}) if preset_key else {}
     # Combine preset and command-line arguments, then remove duplicates
     final_include = list(dict.fromkeys(preset_values.get('include', []) + args.include))
     final_exclude = list(dict.fromkeys(preset_values.get('exclude', []) + args.exclude))
     final_include_in_tree = list(dict.fromkeys(preset_values.get('include_in_tree', []) + args.include_in_tree))
-
 
     # --- Validation ---
     if not final_include:
@@ -90,22 +95,22 @@ def main() -> None:
                 f"  To run `code_context` without arguments here, create a preset named "
                 f"'[{project_root.name}]' in:\n  {Path.home() / '.config' / 'code_context' / 'presets.toml'}"
             )
-            print(tip, file=sys.stderr)
+            logging.info(tip)
         parser.error("At least one --include value must be provided, either directly or via a preset.")
-    
-    if project_root is None:
-        print("❌ Error: Not inside a recognized project directory (.git or pyproject.toml not found).")
         sys.exit(1)
-    
-    start_path = str(project_root)
 
+    if project_root is None:
+        logging.error("❌ Error: Not inside a recognized project directory (.git or pyproject.toml not found).")
+        sys.exit(1)
+
+    start_path = str(project_root)
     context = CodeContext(
         start_path=start_path,
         include=final_include,
         exclude=final_exclude,
         include_in_tree=final_include_in_tree,
     )
-    
+
     # --- Output Generation ---
     if args.tree:
         final_output = context.get_directory_tree_string()
@@ -113,9 +118,11 @@ def main() -> None:
         final_output = context.get_full_context()
 
     if final_output:
-        print(final_output)
+        print(final_output)  # This is the only print to stdout
     else:
-        print("No content found for the specified criteria.")
+        logging.warning("⚠️ No content found for the specified criteria.")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
