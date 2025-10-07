@@ -1,5 +1,4 @@
 import argparse
-import pyperclip
 import sys
 from pathlib import Path
 from code_context.parse import CodeContext
@@ -55,7 +54,6 @@ def main() -> None:
     # --- General Action Arguments ---
     parser.add_argument("--preset", choices=preset_names, help="Use a predefined set of options from presets.toml.")
     parser.add_argument("--tree", action="store_true", help="Show only the directory tree structure.")
-    parser.add_argument("--copy", action="store_true", help="Copy the output to the clipboard instead of printing.")
 
     # --- Filtering Arguments ---
     filter_group = parser.add_argument_group('Filtering Options (gitignore-style patterns)')
@@ -114,14 +112,10 @@ def main() -> None:
     else:
         final_output = context.get_full_context()
 
-    if args.copy:
-        pyperclip.copy(final_output)
-        print("✅ Context copied to clipboard.")
+    if final_output:
+        print(final_output)
     else:
-        if final_output:
-            print(final_output)
-        else:
-            print("No content found for the specified criteria.")
+        print("No content found for the specified criteria.")
 
 if __name__ == "__main__":
     main()
