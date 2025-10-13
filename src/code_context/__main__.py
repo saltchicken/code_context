@@ -2,12 +2,9 @@ import argparse
 import sys
 import logging
 from pathlib import Path
-from code_context.parse import CodeContext
 
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
+from code_context.parse import CodeContext
+from code_context.config import load_presets, resolve_config
 
 
 def find_project_root(path: Path) -> Path | None:
@@ -24,26 +21,9 @@ def find_project_root(path: Path) -> Path | None:
         current_path = current_path.parent
 
 
-def load_presets() -> dict:
-    """
-    Loads presets from the user's configuration file at ~/.config/code_context/presets.toml.
-    """
-    user_config_path = Path.home() / ".config" / "code_context" / "presets.toml"
-    if user_config_path.is_file():
-        try:
-            presets_text = user_config_path.read_text(encoding='utf-8')
-            return tomllib.loads(presets_text)
-        except Exception as e:
-            logging.warning(f"⚠️ Could not parse user presets at {user_config_path}: {e}")
-    else:
-        logging.warning(f"⚠️ User presets not found at {user_config_path}")
-    return {}
-
-
 def main() -> None:
     """
     Main function for the command-line interface.
-
     Parses arguments to determine what context to gather and how to output it.
     """
     logging.basicConfig(
@@ -54,6 +34,7 @@ def main() -> None:
 
     presets = load_presets()
     preset_names = list(presets.keys())
+
     parser = argparse.ArgumentParser(
         description="""Gather and display a codebase context, useful for LLMs.
         By default, it shows the directory tree and content of included files."""
@@ -65,11 +46,11 @@ def main() -> None:
 
     # --- Filtering Arguments ---
     filter_group = parser.add_argument_group('Filtering Options (gitignore-style patterns)')
-    filter_group.add_argument("--include", nargs="+", default=[],
+    filter_group.add_argument("--include", nargs="+",
                               help="Patterns for files to include for content (e.g., 'src/**/*.py', '*.md').")
-    filter_group.add_argument("--include-in-tree", nargs="+", default=[],
+    filter_group.add_argument("--include-in-tree", nargs="+",
                               help="Patterns for files to show in the tree but without their content (e.g., '__init__.py').")
-    filter_group.add_argument("--exclude", nargs="+", default=[],
+    filter_group.add_argument("--exclude", nargs="+",
                               help="Patterns for files or directories to exclude (e.g., 'dist/*', '*.log').")
 
     # --- Preset and Argument Merging ---
@@ -81,14 +62,11 @@ def main() -> None:
     if not preset_key and project_root and project_root.name in presets:
         preset_key = project_root.name
 
-    preset_values = presets.get(preset_key, {}) if preset_key else {}
-    # Combine preset and command-line arguments, then remove duplicates
-    final_include = list(dict.fromkeys(preset_values.get('include', []) + args.include))
-    final_exclude = list(dict.fromkeys(preset_values.get('exclude', []) + args.exclude))
-    final_include_in_tree = list(dict.fromkeys(preset_values.get('include_in_tree', []) + args.include_in_tree))
+    # Use the new resolve_config function to merge presets and CLI arguments
+    final_config = resolve_config(preset_key, args)
 
     # --- Validation ---
-    if not final_include:
+    if not final_config["include"]:
         if project_root and project_root.name not in presets:
             tip = (
                 f"\n💡 Tip: No automatic preset found for '{project_root.name}'.\n"
@@ -106,9 +84,9 @@ def main() -> None:
     start_path = str(project_root)
     context = CodeContext(
         start_path=start_path,
-        include=final_include,
-        exclude=final_exclude,
-        include_in_tree=final_include_in_tree,
+        include=final_config["include"],
+        exclude=final_config["exclude"],
+        include_in_tree=final_config["include_in_tree"],
     )
 
     # --- Output Generation ---
