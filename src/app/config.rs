@@ -75,9 +75,13 @@ pub fn build_config(
 }
 
 
-pub fn resolve_config(cli: Cli) -> Result<RuntimeConfig> {
+// This fixes the compilation error by accepting the project_name from app.rs
+pub fn resolve_config(cli: Cli, fallback_preset: Option<&str>) -> Result<RuntimeConfig> {
+    // Priority: CLI Flag > Fallback (Folder Name) > None
+    let selected_preset = cli.preset.as_deref().or(fallback_preset);
+
     build_config(
-        cli.preset.as_deref(),
+        selected_preset,
         cli.include,
         cli.exclude,
         cli.include_in_tree,

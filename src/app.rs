@@ -53,9 +53,12 @@ pub fn run() -> Result<()> {
     // 2. Identify Project Root
     let current_dir = env::current_dir().context("Failed to get current directory")?;
 
+
+    let project_name = current_dir.file_name().and_then(|n| n.to_str());
+
     // 3. Resolve Configuration
 
-    let config = resolve_config(args)?;
+    let config = resolve_config(args, project_name)?;
 
     // Validation (mirroring Python logic)
     if config.include.is_empty() && config.include_in_tree.is_empty() {
