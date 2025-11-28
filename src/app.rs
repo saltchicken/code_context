@@ -1,4 +1,4 @@
-// ‼️ Change: specific modules are now public for library usage
+
 pub mod cli;
 pub mod config;
 pub mod formatter;
@@ -16,7 +16,7 @@ use self::formatter::OutputGenerator;
 use self::models::RuntimeConfig;
 use self::scanner::Scanner;
 
-// ‼️ New Function: Exposes the core logic to library users.
+
 // This allows running the scan programmatically without CLI args.
 pub fn generate(config: RuntimeConfig, root: PathBuf) -> Result<String> {
     // 4. Scan Directory
@@ -29,6 +29,7 @@ pub fn generate(config: RuntimeConfig, root: PathBuf) -> Result<String> {
 
     // 5. Generate Output
     let tree_str = OutputGenerator::generate_tree(&entries);
+
     let final_output = if config.tree_only_output {
         format!(
             "<directory_structure>\n{}\n</directory_structure>",
@@ -42,25 +43,26 @@ pub fn generate(config: RuntimeConfig, root: PathBuf) -> Result<String> {
     Ok(final_output)
 }
 
+
+
 /// Initializes components and orchestrates data flow (CLI Mode).
 pub fn run() -> Result<()> {
     // 1. Parse Args
     let args = Cli::parse();
 
-    // 2. Identify Project Root & Name
+    // 2. Identify Project Root
     let current_dir = env::current_dir().context("Failed to get current directory")?;
-    // Simple heuristic: name of current folder
-    let project_name = current_dir.file_name().and_then(|n| n.to_str());
 
     // 3. Resolve Configuration
-    let config = resolve_config(args, project_name)?;
+
+    let config = resolve_config(args)?;
 
     // Validation (mirroring Python logic)
     if config.include.is_empty() && config.include_in_tree.is_empty() {
         anyhow::bail!("No include patterns provided. Please use --include (e.g., 'src/**/*.rs') or specify a preset.");
     }
 
-    // ‼️ Change: Use the library's generate function
+
     let output = generate(config, current_dir)?;
 
     if output.is_empty() {

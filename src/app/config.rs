@@ -33,7 +33,6 @@ fn load_presets_file() -> Result<HashMap<String, PresetConfig>> {
         .context(format!("Failed to read config at {:?}", config_path))?;
 
     let parsed: PresetsFile = toml::from_str(&content).context("Failed to parse presets.toml")?;
-
     Ok(parsed.presets)
 }
 
@@ -48,23 +47,40 @@ fn merge_vecs(preset_vec: Option<Vec<String>>, cli_vec: Option<Vec<String>>) -> 
     combined
 }
 
-pub fn resolve_config(cli: Cli, project_name: Option<&str>) -> Result<RuntimeConfig> {
+
+// This decouples config creation from the CLI struct, allowing programmatic use.
+pub fn build_config(
+    preset_name: Option<&str>,
+    include: Option<Vec<String>>,
+    exclude: Option<Vec<String>>,
+    include_in_tree: Option<Vec<String>>,
+    tree_only: bool,
+) -> Result<RuntimeConfig> {
     let presets = load_presets_file()?;
 
-    // Determine preset to use: CLI flag > Auto-detect > None
-    let preset_key = cli.preset.as_deref().or(project_name);
-    let preset = preset_key
+
+    let preset = preset_name
         .and_then(|k| presets.get(k))
         .cloned()
         .unwrap_or_default();
 
     let config = RuntimeConfig {
-        include: merge_vecs(preset.include, cli.include),
-        exclude: merge_vecs(preset.exclude, cli.exclude),
-        include_in_tree: merge_vecs(preset.include_in_tree, cli.include_in_tree),
-        tree_only_output: cli.tree,
+        include: merge_vecs(preset.include, include),
+        exclude: merge_vecs(preset.exclude, exclude),
+        include_in_tree: merge_vecs(preset.include_in_tree, include_in_tree),
+        tree_only_output: tree_only,
     };
 
     Ok(config)
 }
 
+
+pub fn resolve_config(cli: Cli) -> Result<RuntimeConfig> {
+    build_config(
+        cli.preset.as_deref(),
+        cli.include,
+        cli.exclude,
+        cli.include_in_tree,
+        cli.tree,
+    )
+}
