@@ -1,5 +1,5 @@
 use crate::app::models::{FileEntry, RuntimeConfig};
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
 use pathdiff::diff_paths;
@@ -14,6 +14,13 @@ pub struct Scanner {
 
 impl Scanner {
     pub fn new(root: PathBuf, config: &RuntimeConfig) -> Result<Self> {
+        if !root.join(".gitignore").exists() {
+            return Err(anyhow!(
+                "Validation failed: No .gitignore file found in the project root ({:?}).\nThis tool requires a .gitignore file to ensure it respects project boundaries.",
+                root
+            ));
+        }
+
         Ok(Self {
             root,
             include_set: build_globset(&config.include)?,
@@ -21,7 +28,6 @@ impl Scanner {
             tree_only_set: build_globset(&config.include_in_tree)?,
         })
     }
-
 
     pub fn scan(&self) -> Vec<FileEntry> {
         let mut entries = Vec::new();
@@ -100,3 +106,4 @@ fn build_globset(patterns: &[String]) -> Result<GlobSet> {
     }
     Ok(builder.build()?)
 }
+
