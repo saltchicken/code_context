@@ -47,7 +47,6 @@ fn merge_vecs(preset_vec: Option<Vec<String>>, cli_vec: Option<Vec<String>>) -> 
     combined
 }
 
-
 // This decouples config creation from the CLI struct, allowing programmatic use.
 pub fn build_config(
     preset_name: Option<&str>,
@@ -58,11 +57,24 @@ pub fn build_config(
 ) -> Result<RuntimeConfig> {
     let presets = load_presets_file()?;
 
-
     let preset = preset_name
         .and_then(|k| presets.get(k))
         .cloned()
-        .unwrap_or_default();
+        .unwrap_or_else(|| PresetConfig {
+            include: Some(vec![
+                "*.rs".into(),
+                "*.py".into(),
+                "*.toml".into(),
+                "*.jsx".into(),
+                "*.html".into(),
+                "*.css".into(),
+                "*.js".into(),
+                "*.ts".into(),
+                "*.tsx".into(),
+            ]),
+            exclude: None,
+            include_in_tree: None,
+        });
 
     let config = RuntimeConfig {
         include: merge_vecs(preset.include, include),
@@ -73,7 +85,6 @@ pub fn build_config(
 
     Ok(config)
 }
-
 
 // This fixes the compilation error by accepting the project_name from app.rs
 pub fn resolve_config(cli: Cli, fallback_preset: Option<&str>) -> Result<RuntimeConfig> {
