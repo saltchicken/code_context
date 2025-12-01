@@ -71,6 +71,7 @@ pub fn build_config(
                 "*.js".into(),
                 "*.ts".into(),
                 "*.tsx".into(),
+                "*.lua".into(),
             ]),
             exclude: None,
             include_in_tree: None,
